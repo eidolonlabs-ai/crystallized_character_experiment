@@ -1,0 +1,5 @@
+transformers
+mlx-lm
+langchain-openai
+langchain-core
+python-dotenv

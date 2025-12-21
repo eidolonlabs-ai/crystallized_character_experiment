@@ -1,0 +1,75 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env/
+
+# Environment variables
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Model weights and adapters
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+adapters/
+
+# Large model files (merged and GGUF)
+merged_models/
+fused_model/
+gguf_models/*.gguf
+gguf_models/*-Q*.gguf
+
+# Temporary test files
+Modelfile_adapter_test
+
+# Third party
+third_party/
+
+# Logs
+logs/
+wandb/
+
+
+# Additional Model Directories
+models/
+
+# Global GGUF ignore
+*.gguf
+
+# Workspace files
+*.code-workspace
