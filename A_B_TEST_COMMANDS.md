@@ -124,3 +124,19 @@ python -m mlx_lm chat --model models/baseline_mistral_mlx_q4
 - More confident character assertions
 - Better handling of complex questions
 - May occasionally be more verbose
+
+## Next Steps: Automated Evaluation
+
+Manual A/B testing teaches you what to listen for. Once you've developed an ear for voice quality, consider automating:
+
+- **Batch inference**: Run the same test prompts across all trained adapters and save responses to JSONL. A simple comparison of `standard` vs `deep` outputs on the same prompt catches regressions quickly.
+
+- **N-gram diversity**: Measure token/trigram uniqueness in responses — higher diversity suggests less template repetition and stronger personality embedding.
+
+- **System prompt fidelity**: Check whether key character phrases from the system prompt (e.g., "Celestial Archives", "elvish blessings") appear in generated responses. A model that naturally uses these is more "crystallized."
+
+- **LLM-as-judge**: Feed two responses to a larger model and ask it to score which one better matches the character description. Useful for scaling beyond manual review.
+
+- **Perplexity on held-out character data**: Lower perplexity on unseen conversations from the same character suggests better voice capture.
+
+These are outside the scope of this teaching repo but are natural extensions once you're comfortable with the manual workflow.
