@@ -23,8 +23,7 @@ This project explores the "crystallization" of AI character personalities by fin
 │   ├── train_character_model.sh   # Consolidated MLX training script
 │   ├── train_mlx.py               # MLX LoRA training engine
 │   ├── split_training_data.py     # Prepare character data
-│   ├── truncate_training_data.py  # Limit sequence length
-│   └── DEPRECATED_SCRIPTS/        # Old PyTorch/duplicate scripts
+│   └── truncate_training_data.py  # Limit sequence length
 ├── adapters/                      # LoRA adapter outputs (~5-10MB each)
 ├── models/                        # MLX quantized models & merged results
 └── requirements.txt               # Python dependencies
@@ -203,4 +202,3 @@ This copies the merged MLX model to LM Studio's models directory.
 
 - **Hardware**: Optimized for Apple Silicon (M1/M2/M3/M4 Macs) using MLX
 - **No PyTorch**: MLX-exclusive for better performance
-- **Deprecated Scripts**: Old PyTorch/duplicate scripts moved to `scripts/DEPRECATED_SCRIPTS/`

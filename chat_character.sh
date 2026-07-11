@@ -123,9 +123,14 @@ ADAPTER_PATH="adapters/${CHARACTER}_${MODEL_NAME}_qlora${VARIANT_SUFFIX}"
 # Validation
 # ============================================================================
 
-# If quantized model exists locally, use it. Otherwise fall back to HF repo
-# (mlx-lm auto-downloads HuggingFace repos on first use)
-if [ -d "$QUANTIZED_MODEL" ]; then
+# Choose base model for inference:
+#   1. Llama 2 needs the bf16 conversion (created by train_character_model.sh);
+#      loading its native fp16 from HF triggers activation-outlier overflow.
+#   2. Otherwise prefer a local quantized model if one exists.
+#   3. Otherwise fall back to the HF repo (mlx-lm auto-downloads on first use).
+if [ "$MODEL_NAME" = "llama2_7b" ] && [ -d "models/llama-2-7b-chat-bf16" ]; then
+    CHAT_MODEL="models/llama-2-7b-chat-bf16"
+elif [ -d "$QUANTIZED_MODEL" ]; then
     CHAT_MODEL="$QUANTIZED_MODEL"
 else
     CHAT_MODEL="$HF_MODEL"

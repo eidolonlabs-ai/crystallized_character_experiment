@@ -12,9 +12,16 @@ Examples:
 
 import sys
 import subprocess
-import json
 from pathlib import Path
 from collections import defaultdict
+
+# Allow `python scripts/test_inference_quality.py` from the repo root by putting
+# scripts/ on sys.path so we can import the shared model_config module.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from model_config import get_model_config as _get_model_config_dict
+
+# Test prompts and character lists are intentionally separate from model_config
+# (they belong to evaluation, not model identity). Keep them local.
 
 def find_adapters(character):
     """Find all trained adapters for a character"""
@@ -22,17 +29,12 @@ def find_adapters(character):
     pattern = f"{character}_*_qlora"
     return sorted(adapters_dir.glob(pattern))
 
-def get_model_config(model_name):
-    """Map model name to paths"""
-    configs = {
-        "mistral": ("models/mistral-7b-instruct-v0.3-4bit", "mistralai/Mistral-7B-Instruct-v0.3"),
-        "mistral_v0_2": ("models/mistral-7b-instruct-v0.2-4bit", "mistralai/Mistral-7B-Instruct-v0.2"),
-        "mistral_v0_1": ("models/mistral-7b-instruct-v0.1-4bit", "mistralai/Mistral-7B-Instruct-v0.1"),
-        "llama31_8b": ("models/llama-3.1-8b-instruct-4bit", "meta-llama/Llama-3.1-8B-Instruct"),
-        "llama3_8b": ("models/llama-3-8b-instruct-4bit", "meta-llama/Meta-Llama-3-8B-Instruct"),
-        "llama2_7b": ("models/llama-2-7b-chat-4bit", "meta-llama/Llama-2-7b-chat-hf"),
-    }
-    return configs.get(model_name, (None, None))
+def get_model_paths(model_name):
+    """Resolve (local_quantized_path, hf_repo) for a model name.
+    Reads from scripts/model_config.py so adding a model there is the only
+    step required to make it testable here."""
+    cfg = _get_model_config_dict(model_name) or {}
+    return (cfg.get("quantized"), cfg.get("hf"))
 
 def get_test_prompts(character, num_prompts):
     """Get test prompts for a character"""
@@ -116,13 +118,13 @@ def main():
         print("-" * 70)
         
         # Get model paths — prefer quantized local model, fall back to HF repo
-        quantized_model, hf_model = get_model_config(model_name)
+        quantized_model, hf_model = get_model_paths(model_name)
         if not quantized_model and not hf_model:
             print(f"  ✗ Model not found for: {model_name}")
             results[model_name]["status"] = "FAILED"
             continue
-        
-        chat_model = quantized_model if Path(quantized_model).exists() and quantized_model else hf_model
+
+        chat_model = quantized_model if quantized_model and Path(quantized_model).exists() else hf_model
         
         if not (adapter_dir / "adapters.safetensors").exists():
             print(f"  ✗ Adapter weights not found")

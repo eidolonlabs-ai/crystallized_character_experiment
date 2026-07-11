@@ -127,16 +127,24 @@ python -m mlx_lm chat --model models/baseline_mistral_mlx_q4
 
 ## Next Steps: Automated Evaluation
 
-Manual A/B testing teaches you what to listen for. Once you've developed an ear for voice quality, consider automating:
+Manual A/B testing teaches you what to listen for. Once you've developed an ear for voice quality, use `scripts/evaluate_character.py` to get numbers alongside your gut impressions:
 
-- **Batch inference**: Run the same test prompts across all trained adapters and save responses to JSONL. A simple comparison of `standard` vs `deep` outputs on the same prompt catches regressions quickly.
+```bash
+python scripts/evaluate_character.py baseline
+```
+
+It runs every trained adapter on the same prompt set (`scripts/eval_prompts_baseline.jsonl`) and reports:
+
+- **Response length** (avg words) — proxy for verbosity / template padding
+- **Name hit rate** — fraction of responses mentioning Lyra / Moonwhisper / Keeper of the Celestial Archives
+- **Setting hit rate** — fraction mentioning Celestial Archives, ancient, elven, etc.
+- **Blessing hit rate** — fraction ending with or containing elvish blessing closers (`vanya sulie`, `aiya elenion`, `namarie`, `may the stars`...)
+- **Archaic hit rate** — fraction containing archaic English markers (`thou`, `thy`, `doth`, `may the`...)
+
+Pass `--output eval.jsonl` to dump per-prompt responses for diffing across runs. Add your own prompts to `scripts/eval_prompts_baseline.jsonl` (or pass `--prompts PATH`) to widen the eval set without changing the script.
+
+Beyond this script's reach today:
 
 - **N-gram diversity**: Measure token/trigram uniqueness in responses — higher diversity suggests less template repetition and stronger personality embedding.
-
-- **System prompt fidelity**: Check whether key character phrases from the system prompt (e.g., "Celestial Archives", "elvish blessings") appear in generated responses. A model that naturally uses these is more "crystallized."
-
 - **LLM-as-judge**: Feed two responses to a larger model and ask it to score which one better matches the character description. Useful for scaling beyond manual review.
-
 - **Perplexity on held-out character data**: Lower perplexity on unseen conversations from the same character suggests better voice capture.
-
-These are outside the scope of this teaching repo but are natural extensions once you're comfortable with the manual workflow.

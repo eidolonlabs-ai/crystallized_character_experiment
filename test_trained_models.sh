@@ -118,8 +118,11 @@ for adapter_dir in "${ADAPTERS[@]}"; do
     quantized="$(get_quantized_model_path "$model_name")"
     hf_model="$(get_hf_model "$model_name")"
     
-    # Use quantized model if available, otherwise fall back to HF repo
-    if [ -d "$quantized" ]; then
+    # Choose base model: llama2 needs bf16 (activation outliers overflow fp16),
+    # otherwise prefer the local quantized model if present, otherwise HF repo.
+    if [ "$model_name" = "llama2_7b" ] && [ -d "models/llama-2-7b-chat-bf16" ]; then
+        chat_model="models/llama-2-7b-chat-bf16"
+    elif [ -d "$quantized" ]; then
         chat_model="$quantized"
     elif [ -n "$hf_model" ]; then
         chat_model="$hf_model"

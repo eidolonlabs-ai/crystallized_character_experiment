@@ -7,7 +7,13 @@
 #
 # Generates:
 # - Split variants: base, augmented, augmented_curated (90/10 train/valid)
-# - Pre-truncated at 512 tokens (intelligent truncation preserving context)
+# - Pre-truncated at 512 and 768 tokens (intelligent truncation preserving context)
+#
+# Order of operations:
+#   1. Run curate_training_data.py to derive augmented_curated.jsonl from augmented.jsonl
+#   2. For each source variant (base, augmented, augmented_curated, full):
+#        split 90/10 → variant_split/
+#        truncate to 512 and 768 tokens → variant_split_512/, variant_split_768/
 #
 # Truncation strategy:
 # - Keeps system prompt (character definition)
@@ -17,11 +23,14 @@
 # Output structure:
 # raw_data/prepared_data/
 # ├── baseline/
-# │   ├── base_split/
-# │   ├── base_split_truncated/
+# │   ├── base_split/                  (unsplit-cap input for tooling that wants full sequences)
+# │   ├── base_split_512/, base_split_768/
 # │   ├── augmented_split/
-# │   ├── augmented_split_truncated/
-# │   └── full_split_truncated/
+# │   ├── augmented_split_512/, augmented_split_768/
+# │   ├── augmented_curated_split/     (only created if augmented_curated.jsonl exists)
+# │   ├── augmented_curated_split_512/, augmented_curated_split_768/
+# │   ├── full_split/
+# │   └── full_split_512/, full_split_768/
 #
 # Usage:
 #   ./prepare_all_datasets.sh
@@ -56,9 +65,17 @@ MAX_SEQ_LENGTH=512  # Truncate to this length (Mistral standard)
 for CHARACTER in "${CHARACTERS[@]}"; do
     echo "Processing $CHARACTER..."
     
+    # Derive augmented_curated.jsonl from augmented.jsonl via the curate script.
+    # This must run before the loop below, otherwise the augmented_curated variant
+    # has no source file to read from.
+    if [ -f "raw_data/training_data_${CHARACTER}_augmented.jsonl" ] && [ ! -f "raw_data/training_data_${CHARACTER}_augmented_curated.jsonl" ]; then
+        echo "  Curating augmented data → augmented_curated (trim long responses, keep voice)..."
+        python3 scripts/curate_training_data.py 2>&1 | grep -E "(kept|truncated|skipped|Curation)" || true
+    fi
+
     # Determine variants based on character
     if [ "$CHARACTER" = "baseline" ]; then
-        VARIANTS="baseline baseline_augmented baseline_full"
+        VARIANTS="baseline baseline_augmented baseline_augmented_curated baseline_full"
     fi
     
     for VARIANT in $VARIANTS; do
@@ -75,42 +92,12 @@ for CHARACTER in "${CHARACTERS[@]}"; do
         VARIANT_NAME=$(echo "$VARIANT" | sed "s/${CHARACTER}_//" | sed "s/^${CHARACTER}$/base/")
         SPLIT_DIR="raw_data/prepared_data/${CHARACTER}/${VARIANT_NAME}_split"
         mkdir -p "$SPLIT_DIR"
-        
-        # Use split script (modified to accept output dir)
-        python3 << PYEOF
-import json
-import random
-import os
 
-source = "$SOURCE_FILE"
-output_dir = "$SPLIT_DIR"
-split_ratio = 0.9
-
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
-
-print(f"    Splitting {source}...")
-with open(source, 'r') as f:
-    lines = f.readlines()
-
-data = [json.loads(line) for line in lines]
-random.seed(42)
-random.shuffle(data)
-
-split_idx = int(len(data) * split_ratio)
-train_data = data[:split_idx]
-valid_data = data[split_idx:]
-
-with open(os.path.join(output_dir, "train.jsonl"), 'w') as f:
-    for item in train_data:
-        f.write(json.dumps(item) + "\n")
-
-with open(os.path.join(output_dir, "valid.jsonl"), 'w') as f:
-    for item in valid_data:
-        f.write(json.dumps(item) + "\n")
-
-print(f"    ✓ Split: {len(train_data)} train + {len(valid_data)} valid")
-PYEOF
+        # Use the shared split script (single source of truth for the 90/10 split,
+        # seed 42 — kept here so the split logic lives in exactly one place).
+        python3 scripts/split_training_data.py \
+            --input "$SOURCE_FILE" \
+            --output-dir "$SPLIT_DIR" 2>&1 | sed 's/^/    /'
 
         # Step 2: Pre-truncate to 512 and 768 tokens
         for SEQ_LEN in 512 768; do

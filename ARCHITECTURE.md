@@ -172,7 +172,9 @@ python -m mlx_lm chat \
     --system-prompt "You are Lyra Moonwhisper..."
 ```
 
-If the quantized 4-bit model exists locally, it's used for faster loading. Otherwise the script falls back to the HuggingFace repo ID, which mlx-lm auto-downloads.
+If the quantized 4-bit model exists locally, it's used for faster loading. Otherwise the script falls back to the HuggingFace repo ID, which mlx-lm auto-downloads (and on first use, quantizes to 4-bit into the local `models/` cache). The local-quantized path is a performance optimization — the common case today is the HF fallback, since `train_character_model.sh` produces fused fp16 outputs (`models/<char>_<model>_mlx_fp16[_deep]`) and not 4-bit conversions. Run `python -m mlx_lm convert --hf-path <hf_repo> --mlx-path models/<name>-4bit --quantize --q-bits 4` once per model to pre-create the local quantized cache.
+
+Llama 2 has an additional fallback: if `models/llama-2-7b-chat-bf16` exists (created by the training script the first time you train llama2), it's preferred over both the 4-bit and HF-fp16 paths. Loading llama2 from HF in fp16 triggers activation-outlier overflow, so the bf16 cache is required for stable inference.
 
 The system prompt is hand-written in `scripts/character_config.sh` and `chat_character.sh` — it's not extracted from training data. If you update the character definition in the training data, update it in both scripts too.
 
@@ -220,9 +222,9 @@ To add a new model (e.g., a new Llama version):
    }
    ```
 
-3. **`scripts/test_inference_quality.py`**: Add a matching entry in `get_model_config()`.
+3. **`scripts/test_inference_quality.py`**: Reads `MODEL_CONFIGS` from `scripts/model_config.py`, so no change needed here as long as the config entry exists. (The old hardcoded dict was removed.)
 
-4. **`train_baseline_suite.sh`**: Add the model to the `MODELS` array.
+4. **`train_baseline_suite.sh`**: Add the model to the `MODELS` array if you want the suite to train it.
 
 That's it — the training script, chat script, and test scripts all derive their paths from these configs dynamically.
 

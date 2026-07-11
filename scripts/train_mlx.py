@@ -162,11 +162,14 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, required=True, help="Base model name or path")
     parser.add_argument("--data_dir", type=str, required=True, help="Directory with train.jsonl and valid.jsonl")
     parser.add_argument("--output_dir", type=str, required=True, help="Output directory for adapters")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
+    # Defaults match the "standard" variant in scripts/train_character_model.sh so
+    # calling this script directly (without going through the bash wrapper) gives
+    # the same training as `./scripts/train_character_model.sh <char> <model>`.
+    parser.add_argument("--epochs", type=int, default=5, help="Number of training epochs (matches train_character_model.sh standard variant)")
     parser.add_argument("--batch-size", type=int, default=1, help="Batch size for training")
-    parser.add_argument("--num-layers", type=int, default=16, help="Number of layers to fine-tune")
-    parser.add_argument("--learning-rate", type=float, default=1e-4, help="Learning rate")
-    parser.add_argument("--max-seq-length", type=int, default=4096, help="Maximum sequence length (default 4096 for long conversations)")
+    parser.add_argument("--num-layers", type=int, default=8, help="Number of LoRA layers to fine-tune (matches standard variant)")
+    parser.add_argument("--learning-rate", type=float, default=5e-5, help="Learning rate (matches standard variant)")
+    parser.add_argument("--max-seq-length", type=int, default=512, help="Maximum sequence length in tokens (matches standard variant)")
     parser.add_argument("--gradient-accumulation-steps", type=int, default=2, help="Number of gradient accumulation steps")
     parser.add_argument("--mask-prompt", action="store_true", default=False, help="Mask prompt during training (only compute loss on completion)")
     parser.add_argument("--no-mask-prompt", action="store_false", dest="mask_prompt", help="Disable prompt masking")
