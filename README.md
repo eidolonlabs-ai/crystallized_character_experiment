@@ -2,6 +2,17 @@
 
 This project explores the "crystallization" of AI character personalities by fine-tuning efficient LLMs on their specific conversation history using **MLX** on Apple Silicon. The goal is to "bake" the character's emergent voice, quirks, and identity directly into the model weights.
 
+## Documentation
+
+| Document | What it covers |
+|----------|---------------|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | How the training pipeline works — read this first |
+| [`DATA_PIPELINE.md`](DATA_PIPELINE.md) | Data preparation, splitting, and truncation |
+| [`MLX_SETUP.md`](MLX_SETUP.md) | MLX installation, training commands, memory tuning |
+| [`A_B_TEST_COMMANDS.md`](A_B_TEST_COMMANDS.md) | Comparing standard vs deep variants, test prompts |
+| [`E002_crystallized_character.md`](E002_crystallized_character.md) | Original experiment proposal and results |
+| [`CLAUDE.md`](CLAUDE.md) | Reference for AI coding assistants |
+
 ## Project Structure
 
 ```
