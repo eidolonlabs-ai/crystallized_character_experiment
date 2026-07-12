@@ -32,6 +32,8 @@ if [ $# -lt 2 ]; then
     echo "MODEL NAMES:"
     echo "    mistral_v0_3  - Mistral 7B Instruct v0.3"
     echo "    llama31_8b    - Meta Llama 3.1 8B Instruct"
+    echo "    qwen25_7b     - Qwen2.5-7B-Instruct"
+    echo "    qwen3_8b      - Qwen3-8B"
     echo ""
     echo "VARIANTS (optional):"
     echo "  standard      - Standard training (8-layer LoRA, 5e-5 LR, 2048 seq len)"
@@ -142,7 +144,7 @@ get_model_config() { get_hf_model "$1"; }
 MODEL_CONFIG=$(get_model_config "$MODEL_NAME")
 if [ -z "$MODEL_CONFIG" ]; then
     echo "Error: Unknown model '$MODEL_NAME'"
-    echo "Available models: mistral_v0_3, llama31_8b"
+    echo "Available models: mistral_v0_3, llama31_8b, qwen25_7b, qwen3_8b"
     exit 1
 fi
 

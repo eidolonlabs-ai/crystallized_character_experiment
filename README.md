@@ -91,6 +91,8 @@ The project uses **MLX** exclusively for optimal performance on Apple Silicon Ma
 |----------|-----------|------|
 | `mistral_v0_3` | Mistral 7B v0.3 | 7B |
 | `llama31_8b` | Llama 3.1 8B | 8B |
+| `qwen25_7b` | Qwen2.5 7B | 7B |
+| `qwen3_8b` | Qwen3-8B | 8B |
 
 ### Training Variants
 

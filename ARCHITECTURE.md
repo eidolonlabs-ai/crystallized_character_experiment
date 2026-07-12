@@ -75,6 +75,8 @@ The script sources `scripts/model_config.sh` which maps model names to HuggingFa
 |-------------|-------------------------------------------|
 | `mistral_v0_3` | `mistralai/Mistral-7B-Instruct-v0.3`   |
 | `llama31_8b` | `meta-llama/Llama-3.1-8B-Instruct`    |
+| `qwen25_7b` | `Qwen/Qwen2.5-7B-Instruct` |
+| `qwen3_8b` | `Qwen/Qwen3-8B` |
 
 All model names use their canonical form directly — no aliases. Adapter paths are always consistent.
 
@@ -254,7 +256,7 @@ These are set automatically by `train_character_model.sh`.
 | `scripts/train_character_model.sh` | Entry point: orchestrates the full pipeline |
 | `scripts/train_mlx.py` | Thin Python wrapper around `mlx_lm lora` |
 | `prepare_all_datasets.sh` | One-shot data prep (split + truncate) |
-| `train_baseline_suite.sh` | Runs training across both supported models |
+| `train_baseline_suite.sh` | Runs training across all supported models |
 | `chat_character.sh` | Interactive chat with a trained adapter |
 | `test_trained_models.sh` | Smoke-tests all adapters for a character |
 | `scripts/split_training_data.py` | Splits JSONL into train/valid (standalone utility) |
@@ -267,10 +269,10 @@ These are set automatically by `train_character_model.sh`.
 
 ## Training suite flow
 
-`train_baseline_suite.sh` trains both supported models sequentially, tracking successes and failures:
+`train_baseline_suite.sh` trains all supported models sequentially, tracking successes and failures:
 
 ```
-mistral_v0_3 → llama31_8b
+mistral_v0_3 → llama31_8b → qwen25_7b → qwen3_8b
 ```
 
-This provides a full comparison matrix — 2 models × 2 variants (standard/deep) = 4 configurations. The suite is designed for A/B testing: train everything, then compare voice quality across architectures.
+This provides a full comparison matrix — 4 models × 2 variants (standard/deep) = 8 configurations. The suite is designed for A/B testing: train everything, then compare voice quality across architectures.

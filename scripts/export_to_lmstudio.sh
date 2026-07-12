@@ -18,7 +18,7 @@ if [ $# -lt 2 ]; then
     echo "Usage: $0 <character> <model_name> [variant]"
     echo ""
     echo "Characters: baseline"
-    echo "Models: mistral_v0_3, llama31_8b"
+    echo "Models: mistral_v0_3, llama31_8b, qwen25_7b, qwen3_8b"
     echo "Variant: standard (default) or deep"
     exit 1
 fi

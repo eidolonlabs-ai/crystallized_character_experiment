@@ -46,6 +46,14 @@ MODEL_CONFIGS = {
         "hf": "meta-llama/Llama-3.1-8B-Instruct",
         "quantized": "models/llama-3.1-8b-instruct-4bit",
     },
+    "qwen25_7b": {
+        "hf": "Qwen/Qwen2.5-7B-Instruct",
+        "quantized": "models/qwen2.5-7b-instruct-4bit",
+    },
+    "qwen3_8b": {
+        "hf": "Qwen/Qwen3-8B",
+        "quantized": "models/qwen3-8b-4bit",
+    },
 }
 
 CHARACTER_CONFIGS = {

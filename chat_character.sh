@@ -24,6 +24,8 @@ if [ $# -lt 2 ]; then
     echo "MODEL NAMES:"
     echo "    mistral_v0_3  - Mistral 7B Instruct v0.3"
     echo "    llama31_8b    - Meta Llama 3.1 8B Instruct"
+    echo "    qwen25_7b     - Qwen2.5-7B-Instruct"
+    echo "    qwen3_8b      - Qwen3-8B"
     echo ""
     echo "VARIANTS (optional):"
     echo "  standard      - Standard training variant (default)"
@@ -91,7 +93,7 @@ HF_MODEL=$(get_hf_model "$MODEL_NAME")
 
 if [ -z "$QUANTIZED_MODEL" ] || [ -z "$HF_MODEL" ]; then
     echo "Error: Unknown model '$MODEL_NAME'"
-    echo "Available models: mistral_v0_3, llama31_8b"
+    echo "Available models: mistral_v0_3, llama31_8b, qwen25_7b, qwen3_8b"
     exit 1
 fi
 

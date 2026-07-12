@@ -24,6 +24,8 @@ fi
 MODELS=(
     "mistral_v0_3"  # Mistral 7B v0.3
     "llama31_8b"    # Llama 3.1 8B Instruct
+    "qwen25_7b"     # Qwen2.5-7B-Instruct
+    "qwen3_8b"      # Qwen3-8B
 )
 
 CHARACTERS=("baseline")

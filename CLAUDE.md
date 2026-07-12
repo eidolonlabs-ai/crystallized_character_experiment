@@ -8,7 +8,7 @@ Experiment E002 — "crystallized character" models. LoRA-fine-tunes small open-
 
 - **Stack**: MLX (`mlx-lm`) exclusively on Apple Silicon. No PyTorch/Docker.
 - **Characters**: `baseline` (Lyra Moonwhisper).
-- **Models**: `mistral_v0_3` (Mistral 7B Instruct v0.3) and `llama31_8b` (Llama 3.1 8B Instruct). Each maps to a specific HF repo via `get_hf_model()` in `scripts/model_config.sh`.
+- **Models**: `mistral_v0_3` (Mistral 7B Instruct v0.3), `llama31_8b` (Llama 3.1 8B Instruct), `qwen25_7b` (Qwen2.5-7B-Instruct), and `qwen3_8b` (Qwen3-8B). Each maps to a specific HF repo via `get_hf_model()` in `scripts/model_config.sh`.
 - **Variants**: `standard` (8 LoRA layers, 5e-5 lr, 2048 seq, 5 epochs) and `deep` (16 LoRA layers, 2.5e-5 lr, 2048 seq, 5 epochs). Add `_deep` to output paths.
 
 See `README.md` and `E002_crystallized_character.md` for background/hypothesis, `ARCHITECTURE.md` for pipeline design, and `DATA_PIPELINE.md`, `MLX_SETUP.md`, `A_B_TEST_COMMANDS.md` for deeper reference.
@@ -32,7 +32,7 @@ All training/chat scripts require macOS Apple Silicon and activate `.venv` thems
 # Deep variant + 4-bit fused output
 ./scripts/train_character_model.sh baseline mistral_v0_3 deep 4bit
 
-# Full baseline sweep across both supported models (~30-40 min)
+# Full baseline sweep across all supported models (~30-40 min)
 ./train_baseline_suite.sh test          # dry-run printout
 ./train_baseline_suite.sh run           # actual training, per-model timing
 
@@ -86,7 +86,7 @@ models/<character>_<model>_mlx_q4[_deep]/          # fused+quantized MLX (gitign
 
 - **Per-model YAML configs at `configs/`** — overrides `scripts/model_config.py::DEFAULT_TRAINING` for a single model. See `configs/README.md` for the schema. Use `--config PATH` on the bash wrapper to apply.
 - **`--fine-tune-type {lora,dora}`** — DoRA is supported natively by `mlx-lm 0.30`; the wrapper exposes it as a flag without any code change. Default is `lora`. See `docs/HYPERPARAMETERS.md`.
-- **`--mask-prompt`** — modern SFT recipes mask the prompt and only compute loss on the assistant response. mlx-lm 0.30 supports this cleanly. **Repo default is `--no-mask-prompt`** for cross-model comparability — every supported base model converges under this recipe, so the loss signal is the same across the 2-model matrix. See the per-model LR override below for how divergence on Mistral v0.3 is handled without changing the loss recipe.
+- **`--mask-prompt`** — modern SFT recipes mask the prompt and only compute loss on the assistant response. mlx-lm 0.30 supports this cleanly. **Repo default is `--no-mask-prompt`** for cross-model comparability — every supported base model converges under this recipe, so the loss signal is the same across the 4-model matrix. See the per-model LR override below for how divergence on Mistral v0.3 is handled without changing the loss recipe.
 - **`--optimizer {adamw,adam,muon,sgd,adafactor}`** — pick the optimizer at the bash layer; default is `adamw`.
 - **`--grad-checkpoint`** — enable on <32 GB unified memory Macs.
 

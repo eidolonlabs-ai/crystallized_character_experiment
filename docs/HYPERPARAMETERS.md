@@ -60,7 +60,7 @@ recipes (Tulu, OpenHermes, SmolTalk) all mask the prompt. The repo
 default is `false` (`MASK_PROMPT="--no-mask-prompt"` in
 `scripts/train_character_model.sh`) for **cross-model comparability**:
 every supported base model converges under this recipe, so the loss
-signal is the same across the 2-model matrix.
+signal is the same across the 4-model matrix.
 
 If you want to flip the default for a single run, pass
 `--mask-prompt` on the CLI. Don't change the repo default without
@@ -93,7 +93,7 @@ Llama 3.1 8B converges at 5e-5 — it's not affected by the issue.
 sets `2.5e-5` for Mistral v0.3. The bash wrapper reads
 this override after the variant block and before training starts;
 a `--learning-rate` CLI flag always wins. This preserves the
-`--no-mask-prompt` loss recipe across both models — no cross-model
+`--no-mask-prompt` loss recipe across all models — no cross-model
 comparison confound.
 
 To retrain a Mistral v0.3 adapter under the same recipe as

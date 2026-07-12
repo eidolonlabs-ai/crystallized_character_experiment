@@ -75,7 +75,7 @@ python scripts/train_mlx.py \
 ```
 
 **Characters**: baseline
-**Models**: mistral_v0_3, llama31_8b
+**Models**: mistral_v0_3, llama31_8b, qwen25_7b, qwen3_8b
 **Variants**: standard (default), deep
 
 **Example**:
