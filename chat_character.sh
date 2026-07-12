@@ -171,9 +171,14 @@ echo ""
 # Start Chat
 # ============================================================================
 
-python -m mlx_lm chat \
+# Use scripts/folded_chat.py instead of `mlx_lm chat`. The latter calls
+# tokenizer.apply_chat_template() which silently drops role=system on Mistral
+# v0.3 and the Llama chat tokenizers, so the adapter's [SYSTEM] trigger is
+# never met and the model falls back to base behavior. folded_chat.py applies
+# the Phase 0 fold at inference time, matching the training distribution.
+python scripts/folded_chat.py \
   --model "$CHAT_MODEL" \
   --adapter-path "$ADAPTER_PATH" \
   --system-prompt "$SYSTEM_PROMPT" \
   --temp 0.7 \
-  --max-tokens 200
+  --max-tokens 300
