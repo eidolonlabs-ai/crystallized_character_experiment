@@ -28,6 +28,18 @@ DEFAULT_TRAINING = {
     "seed": 42,
 }
 
+# Per-model learning-rate overrides. Mistral v0.2 / v0.3 diverge at the
+# repo-wide 5e-5 default under --no-mask-prompt (AdamW amplifies the
+# gradient on the identical ~50-token system prompt until loss explodes:
+# train 4.3 -> 8.8 in 30 iters). At 2.5e-5 the same models converge
+# cleanly (val 2.7 -> 0.8 in 30 iters). Llama family and Mistral v0.1
+# converge fine at 5e-5, so only v0.2 / v0.3 need the override. See
+# docs/HYPERPARAMETERS.md for the empirical 10/30-iter comparison.
+PER_MODEL_LEARNING_RATE = {
+    "mistral_v0_2": 2.5e-5,
+    "mistral_v0_3": 2.5e-5,
+}
+
 MODEL_CONFIGS = {
     # Mistral family
     "mistral_v0_3": {
@@ -107,6 +119,14 @@ def get_system_prompt(character):
 def get_character_description(character):
     cfg = CHARACTER_CONFIGS.get(character, {})
     return cfg.get("description", "A helpful assistant.")
+
+
+def get_learning_rate(model_name: str) -> float:
+    """Return the per-model learning rate. Mistral v0.2/v0.3 have an override
+    (see PER_MODEL_LEARNING_RATE); every other model uses the repo default
+    of 5e-5. Callers should respect any explicit CLI override before
+    applying this value."""
+    return PER_MODEL_LEARNING_RATE.get(model_name, 5e-5)
 
 
 def get_training_defaults(model_name: str) -> dict:

@@ -53,41 +53,60 @@ modern recipes (Tulu, OpenHermes) commonly use 0.05-0.1. Keep this small
 
 ## Loss & optimization knobs
 
-### `mask_prompt` — only train on the assistant response (default `true`)
+### `mask_prompt` — only train on the assistant response (default `false`)
 
-When `true`, only assistant tokens contribute to the loss. This is the
-**modern SFT default** (Tulu, OpenHermes, SmolTalk all mask the prompt)
-and the repo default (`MASK_PROMPT="--mask-prompt"` in
-`scripts/train_character_model.sh`).
+When `true`, only assistant tokens contribute to the loss. Modern SFT
+recipes (Tulu, OpenHermes, SmolTalk) all mask the prompt. The repo
+default is `false` (`MASK_PROMPT="--no-mask-prompt"` in
+`scripts/train_character_model.sh`) for **cross-model comparability**:
+every supported base model converges under this recipe, so the loss
+signal is the same across the 6-model matrix.
 
-**Why we switched the default.** The Phase 0 fold puts the character
-system prompt into every training row's first user turn as
-`[SYSTEM] You are Lyra Moonwhisper, ... \n\n[USER] <q>`. That
-~50-token system-prompt block is byte-identical across all 319 training
-examples. With `--no-mask-prompt`, AdamW computes 319 near-identical
-gradient signals for "predict the next token of the system prompt" and
-amplifies those weights until training diverges on Mistral v0.2/v0.3:
-
-| iter | `--no-mask-prompt` (diverging) | `--mask-prompt` (converging) |
-|------|--------------------------------|------------------------------|
-| 1 (val) | **5.434** | 2.354 |
-| 5 (train) | 4.315 | 2.096 |
-| 10 (val) | 7.561 (catastrophic) | **1.638** ✓ |
-| 10 (train) | 8.778 | **1.368** ✓ |
-
-Empirically verified in commit `a6d6988`. Llama family (lower base
-perplexity on the system-prompt tokens) doesn't diverge without mask,
-but is also probably memorizing the prompt rather than learning from
-it. `--mask-prompt` is unambiguously better for this dataset shape.
-
-**Backward-compat:** the 8 pre-Phase-0 adapters in `adapters/` were
-trained with `--no-mask-prompt` and represent a known-bad baseline.
-Re-train them under the new default if you need them; do not re-train
-the diverged post-Phase-0 Mistral v0.2/v0.3 adapters under the old
-default — they will diverge again.
+If you want to flip the default for a single run, pass
+`--mask-prompt` on the CLI. Don't change the repo default without
+considering how it affects cross-model comparisons.
 
 Historical note: an older version of mlx-lm produced NaN loss with
 `--mask-prompt` on Llama 3.1. mlx-lm 0.30.0 doesn't have that bug.
+
+### Per-model learning rate (Mistral v0.2/v0.3 only)
+
+The Phase 0 fold puts the character system prompt into every training
+row's first user turn as `[SYSTEM] You are Lyra Moonwhisper, ... \n\n[USER] <q>`.
+That ~50-token system-prompt block is byte-identical across all 319
+training examples. With `--no-mask-prompt`, AdamW's adaptive LR
+amplifies the consistent gradient signal on those tokens, and the
+weights for the system-prompt predictions grow until loss diverges on
+some base models.
+
+**Empirical 30-iter comparison on Mistral v0.3 (identical otherwise):**
+
+| LR | Iter 1 val | Iter 30 val | Iter 30 train | Verdict |
+|---|---|---|---|---|
+| **5e-5** (repo default) | 5.434 | 7.561 | 8.778 | ❌ diverges |
+| 2.5e-5 | 2.699 | **0.771** | 1.159 | ✓ converges cleanly |
+| 1e-5 | 2.699 | 1.100 | 1.404 | ✓ converges |
+
+Mistral v0.2 behaves identically (same tokenizer family). Llama family
+and Mistral v0.1 converge at 5e-5 — they're not affected by the issue.
+
+**The fix:** `PER_MODEL_LEARNING_RATE` in `scripts/model_config.py`
+sets `2.5e-5` for Mistral v0.2 and v0.3 only. The bash wrapper reads
+this override after the variant block and before training starts;
+a `--learning-rate` CLI flag always wins. This preserves the
+`--no-mask-prompt` loss recipe across all 6 models — no cross-model
+comparison confound.
+
+To retrain a Mistral v0.2/v0.3 adapter under the same recipe as
+the working Llama/v0.1 adapters, just run:
+
+```bash
+./scripts/train_character_model.sh baseline mistral_v0_3
+# no flag needed — per-model override applies automatically
+```
+
+To force the higher (diverging) LR for an experiment, pass
+`--learning-rate 5e-5` explicitly.
 
 ### `optimizer` — optimizer choice (default `adamw`)
 

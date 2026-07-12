@@ -55,10 +55,10 @@ if [ $# -lt 2 ]; then
     echo "  --config PATH         Path to a YAML config (default: auto-generated from"
     echo "                        scripts/model_config.py::DEFAULT_TRAINING)."
     echo "  --fine-tune-type F    lora | dora (default: lora; DoRA is supported natively)."
-    echo "  --mask-prompt         Only compute loss on assistant tokens (modern SFT default; repo default)."
-    echo "  --no-mask-prompt      Include the prompt in the loss. Note: with the post-Phase 0 fold,"
-    echo "                        this causes AdamW to amplify the identical ~50-token system-prompt"
-    echo "                        gradient across all examples and diverges Mistral v0.2/v0.3."
+    echo "  --mask-prompt         Only compute loss on assistant tokens."
+    echo "  --no-mask-prompt      Include the prompt in the loss (repo default; cross-model comparable)."
+    echo "  --learning-rate LR    Override the per-model learning rate (default 5e-5; 2.5e-5 for"
+    echo "                        mistral_v0_2 / mistral_v0_3 — see PER_MODEL_LEARNING_RATE)."
     echo "  --grad-checkpoint     Trade compute for memory on <32 GB unified-memory Macs."
     echo "  --optimizer NAME      adam | adamw | muon | sgd | adafactor (default: adamw)."
     echo "  --seed N              PRNG seed (default: 42)."
@@ -81,6 +81,7 @@ MASK_PROMPT_OVERRIDE=""
 GRAD_CHECKPOINT_OVERRIDE=""
 OPTIMIZER_OVERRIDE=""
 SEED_OVERRIDE=""
+LEARNING_RATE_OVERRIDE=""
 POSITIONAL=()
 
 while [ $# -gt 0 ]; do
@@ -92,6 +93,7 @@ while [ $# -gt 0 ]; do
         --grad-checkpoint) GRAD_CHECKPOINT_OVERRIDE="--grad-checkpoint"; shift ;;
         --optimizer) OPTIMIZER_OVERRIDE="$2"; shift 2 ;;
         --seed) SEED_OVERRIDE="$2"; shift 2 ;;
+        --learning-rate) LEARNING_RATE_OVERRIDE="$2"; shift 2 ;;
         --*) echo "Unknown flag: $1" >&2; exit 2 ;;
         *) POSITIONAL+=("$1"); shift ;;
     esac
@@ -217,12 +219,32 @@ else
     VARIANT_SUFFIX=""
 fi
 
-# Modern SFT default: only compute loss on the assistant response. The
-# `--no-mask-prompt` alternative trains on the full sequence including the
-# (identical, repeated) system prompt, which AdamW's adaptive LR amplifies
-# until training diverges on Mistral v0.2/v0.3 (see commit log for the
-# empirical 10-iter test). Override via --no-mask-prompt on the CLI.
-MASK_PROMPT="--mask-prompt"
+# Apply per-model learning-rate override (Mistral v0.2/v0.3 only — see
+# model_config.py::PER_MODEL_LEARNING_RATE for why). The standard variant's
+# 5e-5 default diverges on those two because AdamW amplifies the gradient
+# on the identical post-Phase-0 system-prompt block until loss explodes.
+# 2.5e-5 converges cleanly with the same loss recipe.
+if [ -n "$LEARNING_RATE_OVERRIDE" ]; then
+    LEARNING_RATE="$LEARNING_RATE_OVERRIDE"
+    echo "  CLI --learning-rate override: $LEARNING_RATE"
+else
+    PER_MODEL_LR=$(python -c "
+import sys
+sys.path.insert(0, 'scripts')
+from model_config import get_learning_rate
+print(get_learning_rate('$MODEL_NAME'))
+")
+    if [ "$PER_MODEL_LR" != "5e-05" ]; then
+        LEARNING_RATE="$PER_MODEL_LR"
+        echo "  Per-model learning rate for $MODEL_NAME: $LEARNING_RATE"
+    fi
+fi
+
+# Repo default is --no-mask-prompt (parity with the existing 8 trained
+# adapters, all 6 supported base models converge under this). --mask-prompt
+# is exposed for users who want modern SFT defaults; it changes the loss
+# recipe and breaks cross-model comparison, so don't switch the default.
+MASK_PROMPT="--no-mask-prompt"
 
 # Set quantization suffix for output paths
 if [ "$QUANTIZE" = "4bit" ]; then
