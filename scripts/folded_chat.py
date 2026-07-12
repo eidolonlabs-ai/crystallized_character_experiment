@@ -74,10 +74,21 @@ def main() -> int:
     # Conversation state: list of {role, content} dicts.
     # The first user message is folded with [SYSTEM]...; subsequent ones
     # are plain. We rebuild the prompt from this list each turn using
-    # apply_chat_template(tokenize=False) — which by design drops the
-    # role=system message but preserves user content (where the fold lives).
+    # apply_chat_template(tokenize=False). Mistral/Llama tokenizers drop
+    # role=system messages (hence the fold), but Qwen's template renders
+    # them — so on Qwen we inject an explicit system message for language
+    # constraint while keeping the fold intact for training consistency.
     messages: list[dict] = []
     first_turn = True
+
+    # Qwen models auto-insert "You are Qwen, created by Alibaba Cloud..."
+    # into the system slot when no system message is present (the fold
+    # eliminates the system role). This creates a dual-identity conflict
+    # with the folded character prompt and causes the model to fall back
+    # to Chinese for self-correction. Provide a system message that
+    # matches the training distribution while constraining language.
+    is_qwen = "qwen" in args.model.lower()
+    QWEN_SYSTEM = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant. All your responses must be in English only. Do not use Chinese, Japanese, or any other language."
 
     print()
     print("Folded chat — Phase 0 fold applied on every first turn.")
@@ -105,9 +116,9 @@ def main() -> int:
             print("Commands: 'q' exit, 'r' reset, 'h' help.")
             continue
 
-        # Build the next user message. On the first turn, fold the system
-        # prompt in. On subsequent turns, just append the raw text — the
-        # chat template handles non-system messages correctly.
+        if is_qwen and first_turn:
+            messages.append({"role": "system", "content": QWEN_SYSTEM})
+
         if first_turn:
             content = fold_first_turn(args.system_prompt, user)
             first_turn = False
@@ -115,9 +126,10 @@ def main() -> int:
             content = user
         messages.append({"role": "user", "content": content})
 
-        # Render the conversation. We do NOT pass role=system anymore — the
-        # fold put it inside the first user turn's content. apply_chat_template
-        # has nothing to drop, so the rendered prompt matches training exactly.
+        # Render the conversation. The fold puts the character prompt inside
+        # the first user turn's content. For Qwen models we also inject a
+        # system message to prevent the template from auto-inserting a
+        # conflicting default and to constrain language.
         prompt = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
