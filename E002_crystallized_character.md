@@ -105,7 +105,7 @@
 *   **Tooling**: Settled on MLX stack with native LoRA for efficient training on Apple Silicon. Single consolidated training script handles all configurations.
 *   **Data Pipeline**: Complete pipeline from synthetic generation → train/val split → training → model merging.
 *   **Critical Achievements**: 
-    - Single parameterized script supporting 12 configurations (1 character × 6 models × 2 variants)
+    - Single parameterized script supporting 4 configurations (1 character × 2 models × 2 variants)
     - Automatic model quantization and adapter merging
     - Removed PyTorch/Docker dependency for faster iteration
 
