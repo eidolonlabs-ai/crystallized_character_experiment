@@ -45,7 +45,7 @@ Standard vs Deep training variants are handled by the consolidated script:
 |-----------|----------|------|
 | LoRA Layers | 8 | 16 |
 | Learning Rate | 5e-5 | 2.5e-5 |
-| Max Seq Length | 512 | 768 |
+| Max Seq Length | 2048 | 2048 |
 | Epochs | 5 | 5 |
 | Trainable Params | ~2.6M | ~5.2M |
 

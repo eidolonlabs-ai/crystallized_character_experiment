@@ -9,7 +9,7 @@ Experiment E002 — "crystallized character" models. LoRA-fine-tunes small open-
 - **Stack**: MLX (`mlx-lm`) exclusively on Apple Silicon. No PyTorch/Docker.
 - **Characters**: `baseline` (Lyra Moonwhisper).
 - **Models**: `mistral_v0_3` (Mistral 7B Instruct v0.3) and `llama31_8b` (Llama 3.1 8B Instruct). Each maps to a specific HF repo via `get_hf_model()` in `scripts/model_config.sh`.
-- **Variants**: `standard` (8 LoRA layers, 5e-5 lr, 512 seq, 5 epochs) and `deep` (16 LoRA layers, 2.5e-5 lr, 768 seq, 5 epochs). Add `_deep` to output paths.
+- **Variants**: `standard` (8 LoRA layers, 5e-5 lr, 2048 seq, 5 epochs) and `deep` (16 LoRA layers, 2.5e-5 lr, 2048 seq, 5 epochs). Add `_deep` to output paths.
 
 See `README.md` and `E002_crystallized_character.md` for background/hypothesis, `ARCHITECTURE.md` for pipeline design, and `DATA_PIPELINE.md`, `MLX_SETUP.md`, `A_B_TEST_COMMANDS.md` for deeper reference.
 
@@ -106,7 +106,7 @@ models/<character>_<model>_mlx_q4[_deep]/          # fused+quantized MLX (gitign
 - **Training runs with `--no-mask-prompt` by default** (`MASK_PROMPT="--no-mask-prompt"` in `train_character_model.sh`). Loss is computed on the full sequence including the system prompt. The Phase 0 fold makes the system prompt byte-identical across all 319 training examples — without masking, AdamW's adaptive LR amplifies that consistent gradient signal. Mistral v0.3 hits runaway loss at the standard variant's 5e-5 LR; this is fixed by **a per-model LR override to 2.5e-5** (`PER_MODEL_LEARNING_RATE` in `scripts/model_config.py`), without changing the loss recipe. Llama 3.1 8B converges fine at 5e-5, so it keeps the default. See `docs/HYPERPARAMETERS.md` for the empirical comparison.
 - **Quantization suffix on fused output**: `_fp16` for `full`, `_q4` for `4bit`. `chat_character.sh` resolves paths via `get_quantized_model_path()` from `scripts/model_config.sh`. The "local quantized" paths in that config (e.g. `models/mistral-7b-instruct-v0.3-4bit`) are a performance optimization — they let mlx-lm skip the on-demand 4-bit conversion. In practice those directories usually don't exist and chat falls back to the HF repo, which mlx-lm auto-downloads and quantizes on first use.
 - **Checkpoints**: `train_mlx.py` auto-detects `[0-9]*_adapters.safetensors` in the adapter dir and resumes via `--resume-adapter-file`. Saves every 50 iters (`--save-every 50`). Don't manually delete intermediate checkpoints without expecting to lose resume capability.
-- **Memory tuning**: For machines with <32 GB unified memory, follow the order in `MLX_SETUP.md` → reduce `--gradient-accumulation-steps 1`, then `--max-seq-length 768`, then `--num-layers 8`.
+- **Memory tuning**: For machines with <32 GB unified memory, follow the order in `MLX_SETUP.md` → reduce `--gradient-accumulation-steps 1`, then `--max-seq-length 1024`, then `--num-layers 8`.
 - **Metal/MLX env vars** are exported by both wrappers: `MLX_METAL_DEBUG=1`, `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`. Required for stable Apple Silicon training.
 - **JSONL validation**: `scripts/validate_all_jsonl.py` walks every `*.jsonl` under `raw_data/` and flags comment lines or non-JSON content — run this after manual edits; failures abort with all errors.
 

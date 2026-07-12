@@ -153,12 +153,14 @@ trainable parameter count proportionally and tends to learn more style
 nuance; targeting all layers (`-1`) is full fine-tuning and requires much
 more memory.
 
-### `max_seq_length` — context window (default `512` standard, `768` deep)
+### `max_seq_length` — context window (default `2048` both variants)
 
-Long enough to fit system prompt + 1-2 user/assistant turns at 5e-5 LR.
-The deep variant goes to 768 because the curated training examples can
-be longer. Going beyond 1024 starts hurting throughput on 32 GB unified
-memory.
+Full conversational context — no examples are truncated. All 355
+augmented_curated examples fit within 2048 tokens, so the model sees
+every complete assistant response. Below ~1024 the intelligent truncation
+strategy starts shaving words off assistant responses, losing parts of
+the character's voice. Use `--grad-checkpoint` on < 32 GB unified memory
+to trade compute for memory at this sequence length.
 
 ### `batch_size` + `gradient_accumulation_steps` — effective batch (1 × 2 or 1 × 4)
 

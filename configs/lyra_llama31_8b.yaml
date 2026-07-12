@@ -26,7 +26,7 @@ lora_parameters:
 #
 # num_layers: 8               # standard; 16 for deep
 # learning_rate: 5e-5         # standard; 2.5e-5 for deep
-# max_seq_length: 512          # standard; 768 for deep
+# max_seq_length: 2048         # both variants; full context, zero truncation
 # batch_size: 1
 # grad_accumulation_steps: 2   # standard; 4 for deep
 # epochs: 5

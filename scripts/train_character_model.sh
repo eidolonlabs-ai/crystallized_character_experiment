@@ -34,8 +34,8 @@ if [ $# -lt 2 ]; then
     echo "    llama31_8b    - Meta Llama 3.1 8B Instruct"
     echo ""
     echo "VARIANTS (optional):"
-    echo "  standard      - Standard training (8-layer LoRA, 5e-5 LR, 512 seq len)"
-    echo "  deep          - Deep training (16-layer LoRA, 2.5e-5 LR, 768 seq len)"
+    echo "  standard      - Standard training (8-layer LoRA, 5e-5 LR, 2048 seq len)"
+    echo "  deep          - Deep training (16-layer LoRA, 2.5e-5 LR, 2048 seq len)"
     echo "  (default)     - Uses 'standard' if not specified"
     echo ""
     echo "QUANTIZE (optional):"
@@ -175,7 +175,7 @@ if [ "$VARIANT" = "deep" ]; then
     GRAD_ACCUM_STEPS=4
     NUM_LAYERS=16
     LEARNING_RATE=2.5e-5
-    MAX_SEQ_LENGTH=768
+    MAX_SEQ_LENGTH=2048
     EPOCHS=5
     VARIANT_SUFFIX="_deep"
 else
@@ -184,7 +184,7 @@ else
     GRAD_ACCUM_STEPS=2
     NUM_LAYERS=8
     LEARNING_RATE=5e-5
-    MAX_SEQ_LENGTH=512
+    MAX_SEQ_LENGTH=2048
     EPOCHS=5
     VARIANT_SUFFIX=""
 fi

@@ -34,10 +34,10 @@ pip install transformers mlx-lm langchain-openai langchain-core python-dotenv
 The consolidated training script handles everything automatically:
 
 ```bash
-# Train with standard variant (8-layer LoRA, 512 seq length)
+# Train with standard variant (8-layer LoRA, 2048 seq length)
 ./scripts/train_character_model.sh baseline mistral_v0_3
 
-# Train with deep variant (16-layer LoRA, 768 seq length)
+# Train with deep variant (16-layer LoRA, 2048 seq length)
 ./scripts/train_character_model.sh baseline mistral_v0_3 deep
 
 # Train on different models
@@ -105,12 +105,12 @@ Training Configuration:
 
 **Llama 3.1 8B on Apple Silicon:**
 - **64GB RAM**: Standard settings work well (batch=1, grad_accum=2, seq_len=1024)
-- **32GB RAM**: Use lower memory profile (batch=1, grad_accum=1, seq_len=768)
+- **32GB RAM**: Use lower memory profile (batch=1, grad_accum=1, seq_len=1024)
 - **Peak memory**: ~18GB (model) + ~40GB (system) during training
 
 **Training stops at high memory?** Reduce in this order:
 1. `--gradient-accumulation-steps 1`
-2. `--max-seq-length 768`
+2. `--max-seq-length 1024`
 3. `--num-layers 8`
 
 ## Inference / Chat with Trained Model

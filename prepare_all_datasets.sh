@@ -7,7 +7,7 @@
 #
 # Generates:
 # - Split variants: base, augmented, augmented_curated (90/10 train/valid)
-# - Pre-truncated at 512 and 768 tokens (intelligent truncation preserving context)
+# - Pre-truncated at 512, 768, 2048 tokens (intelligent truncation preserving context)
 #
 # Order of operations:
 #   1. Run curate_training_data.py to derive augmented_curated.jsonl from augmented.jsonl
@@ -24,13 +24,13 @@
 # raw_data/prepared_data/
 # ├── baseline/
 # │   ├── base_split/                  (unsplit-cap input for tooling that wants full sequences)
-# │   ├── base_split_512/, base_split_768/
+# │   ├── base_split_512/, base_split_768/, base_split_2048/
 # │   ├── augmented_split/
-# │   ├── augmented_split_512/, augmented_split_768/
+# │   ├── augmented_split_512/, augmented_split_768/, augmented_split_2048/
 # │   ├── augmented_curated_split/     (only created if augmented_curated.jsonl exists)
-# │   ├── augmented_curated_split_512/, augmented_curated_split_768/
+# │   ├── augmented_curated_split_512/, augmented_curated_split_768/, augmented_curated_split_2048/
 # │   ├── full_split/
-# │   └── full_split_512/, full_split_768/
+# │   └── full_split_512/, full_split_768/, full_split_2048/
 #
 # Usage:
 #   ./prepare_all_datasets.sh
@@ -48,7 +48,7 @@ if [ -d ".venv" ]; then
 fi
 
 echo "============================================================================"
-echo "Preparing All Datasets with Pre-Truncation (512 tokens)"
+echo "Preparing All Datasets with Pre-Truncation (512, 768, 2048 tokens)"
 echo "============================================================================"
 echo ""
 
@@ -57,7 +57,6 @@ mkdir -p raw_data/prepared_data
 
 # Configuration
 CHARACTERS=("baseline")
-MAX_SEQ_LENGTH=512  # Truncate to this length (Mistral standard)
 
 # ============================================================================
 # Process each character
@@ -99,8 +98,8 @@ for CHARACTER in "${CHARACTERS[@]}"; do
             --input "$SOURCE_FILE" \
             --output-dir "$SPLIT_DIR" 2>&1 | sed 's/^/    /'
 
-        # Step 2: Pre-truncate to 512 and 768 tokens
-        for SEQ_LEN in 512 768; do
+        # Step 2: Pre-truncate to 512, 768, and 2048 tokens
+        for SEQ_LEN in 512 768 2048; do
             echo "    Pre-truncating to $SEQ_LEN tokens..."
             python3 scripts/truncate_training_data.py \
                 --input-dir "$SPLIT_DIR" \
@@ -123,11 +122,11 @@ echo "==========================================================================
 echo "Dataset Preparation Complete!"
 echo "============================================================================"
 echo ""
-echo "Generated datasets in: raw_data/prepared_data/{character}/{variant}_split_truncated/"
+echo "Generated datasets in: raw_data/prepared_data/{character}/{variant}_split_{seq_len}/"
 echo ""
 echo "Each directory contains:"
-echo "  • train.jsonl - 90% of examples, pre-truncated to 512 tokens"
-echo "  • valid.jsonl - 10% of examples, pre-truncated to 512 tokens"
+echo "  • train.jsonl - 90% of examples, pre-truncated to 512/768/2048 tokens"
+echo "  • valid.jsonl - 10% of examples, pre-truncated to 512/768/2048 tokens"
 echo ""
 echo "Pre-truncation benefits:"
 echo "  ✓ No runtime tokenization overhead during training"
@@ -137,7 +136,7 @@ echo "  ✓ Assistant responses truncated intelligently (not conversation histor
 echo ""
 echo "Next steps:"
 echo "  1. git add raw_data/prepared_data/"
-echo "  2. git commit -m 'Add pre-truncated datasets (512 tokens)'"
+echo "  2. git commit -m 'Add pre-truncated datasets (512, 768, 2048 tokens)'"
 echo "  3. Training will automatically use truncated data"
 echo ""
 echo "============================================================================"

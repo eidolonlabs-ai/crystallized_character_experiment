@@ -17,7 +17,7 @@ The pipeline takes conversation history for a character, formats it as training 
               │    split 90/10 + truncate    │
               └──────────────┬──────────────┘
                              │
-         raw_data/prepared_data/baseline/{variant}_split_512/
+         raw_data/prepared_data/baseline/{variant}_split_2048/
                   ┌──────────┴──────────┐
                   │ train.jsonl         │ valid.jsonl
                   └──────────┬──────────┘
@@ -84,7 +84,7 @@ Training hyperparameters come from the variant selection:
 |--------------------|--------------------|--------------------|
 | LoRA layers        | 8                  | 16                 |
 | Learning rate      | 5e-5               | 2.5e-5             |
-| Max seq length     | 512                | 768                |
+| Max seq length     | 2048               | 2048               |
 | Epochs             | 5                  | 5                   |
 | Effective batch    | 2 (1×2 accum)      | 4 (1×4 accum)      |
 
@@ -92,12 +92,12 @@ Training hyperparameters come from the variant selection:
 
 Training reads from `raw_data/prepared_data/baseline/{variant}_split_{seq}/`. The script picks the first available variant matching the model's sequence length:
 
-1. `augmented_curated_split_512` — curated high-quality examples (if available)
-2. `augmented_split_512` — augmented with synthetic data
-3. `base_split_512` — original data only
-4. `full_split_512` — largest raw dataset
+1. `augmented_curated_split_2048` — curated high-quality examples (if available)
+2. `augmented_split_2048` — augmented with synthetic data
+3. `base_split_2048` — original data only
+4. `full_split_2048` — largest raw dataset
 
-The deep variant uses `_768` suffix instead. The data was pre-split and pre-truncated by `prepare_all_datasets.sh`, so training never does this work at runtime.
+Both variants use `_2048` suffix. All 355 examples fit within 2048 tokens without truncation. The data was pre-split and pre-truncated by `prepare_all_datasets.sh`, so training never does this work at runtime.
 
 ### Step 3: LoRA training
 
@@ -109,7 +109,7 @@ python -m mlx_lm lora \
     --train --data <prepared-data-dir> \
     --adapter-path adapters/baseline_mistral_v0_3_qlora \
     --epochs 5 --batch-size 1 --gradient-accumulation-steps 2 \
-    --num-layers 8 --learning-rate 5e-5 --max-seq-length 512 \
+    --num-layers 8 --learning-rate 5e-5 --max-seq-length 2048 \
     --no-mask-prompt --save-every 50
 ```
 

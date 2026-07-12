@@ -95,10 +95,10 @@ The project uses **MLX** exclusively for optimal performance on Apple Silicon Ma
 ### Training Variants
 
 - **`standard`** (default): Balanced fine-tuning
-  - 8-layer LoRA, 5e-5 learning rate, 512 max sequence length, 5 epochs
+  - 8-layer LoRA, 5e-5 learning rate, 2048 max sequence length, 5 epochs
   
 - **`deep`**: Deeper personality embedding
-  - 16-layer LoRA, 2.5e-5 learning rate, 768 max sequence length, 5 epochs
+  - 16-layer LoRA, 2.5e-5 learning rate, 2048 max sequence length, 5 epochs
 
 ### Detailed Workflow
 
