@@ -52,6 +52,14 @@ Fine-tuning a full 7B-parameter model would require ~56 GB of GPU memory just fo
 
 Our adapters target 8 or 16 layers with rank 8 (configurable in the training script).
 
+### A note on "QLoRA" naming
+
+The adapter paths and filenames use `_qlora` (e.g., `adapters/baseline_mistral_v0_3_qlora/`), but this is **not QLoRA** in the Dettmers et al. (2023) sense. True QLoRA uses NF4 quantization of the base model *during training* to fit larger models on consumer GPUs, implemented via bitsandbytes + HuggingFace PEFT on NVIDIA hardware.
+
+This repo uses **standard LoRA** — the base model stays in FP16 during training. MLX leverages Apple Silicon's unified memory architecture, where the GPU and CPU share RAM, so the ~14 GB needed for a 7B model in FP16 fits comfortably without quantization tricks. The `_qlora` suffix is a historical artifact from an early naming decision and was kept to avoid breaking every script and adapter directory that depends on it.
+
+If you see `_qlora` in a path, read it as "LoRA adapter" — no quantization is applied to the base model during training.
+
 ### The MLX difference
 
 MLX (Apple's machine learning framework) is designed specifically for unified memory — the GPU and CPU share the same physical RAM on Apple Silicon. This eliminates the GPU→CPU data copies that dominate PyTorch training, and lets us train models that would otherwise OOM on the same hardware.
@@ -226,6 +234,40 @@ To add a new model (e.g., a new Llama version):
 4. **`train_baseline_suite.sh`**: Add the model to the `MODELS` array if you want the suite to train it.
 
 That's it — the training script, chat script, and test scripts all derive their paths from these configs dynamically.
+
+### Reasoning models (thinking blocks)
+
+Reasoning models like Qwen3 natively emit `<think>...</think>` blocks. To make the character learn to reason in-voice:
+
+1. **Generate thinking data**: `python scripts/generate_thinking_data.py` — uses an LLM (OpenRouter, default `openai/gpt-4o`) to prepend `<think>` inner monologues to each assistant response.
+2. **Mark the model**: Set `"is_reasoning": True` in `MODEL_CONFIGS` (Python) and add an `is_reasoning_model()` case in `model_config.sh` (bash).
+3. **Prepare the dataset**: `prepare_all_datasets.sh` runs the generation script, then splits and truncates the output into `augmented_curated_thinking_split_2048/`.
+4. **Training auto-routes**: `train_character_model.sh` detects reasoning models and prefers the thinking variant.
+
+The `<think>` blocks are part of the training target, so the model learns to produce in-character reasoning before responding. Non-reasoning models (Mistral, Llama, Qwen2.5) use the standard dataset — no `<think>` tags in their training data.
+
+### Future: tool calling
+
+Tool calling would follow the same pattern but isn't implemented yet:
+
+1. **Generate tool-use examples** — script that produces multi-turn conversations with `<tool_call>` / `<tool_result>` messages in the assistant's voice.
+2. **New dataset variant** — `augmented_curated_tooluse_split_2048/`.
+3. **Mark tool-capable models** — add `supports_tool_calling: True` in `model_config.py`.
+4. **Inference** — `folded_chat.py` would need to pass tool definitions and handle tool-call loops.
+5. **Training format** — system/user/assistant/tool/assistant multi-turn where the character decides when to call a tool, processes the result, and responds in-voice.
+
+### Future: multi-turn training
+
+All training data is currently single-turn (`[system, user, assistant]` triplets). The curate script flattens every conversation to its last user-assistant pair, even if the source had multiple turns. Multi-turn works at inference because the base model's pre-training understands turn continuations, but the adapter has never seen a reply to a reply.
+
+**Gap**: The model doesn't learn to self-reference ("as I said before..."), maintain topic across turns, or remember details from earlier in the conversation. Multi-turn turns at inference rely entirely on the base model's pre-training, not the adapter.
+
+**Fix** would follow the same dataset-variant pattern:
+
+1. **Preserve multi-turn in curate** — add a `--keep-turns N` flag to `curate_training_data.py` (currently it always takes the last pair) so it emits `[system, user1, assistant1, user2, assistant2, ...]` rows.
+2. **Or generate synthetic multi-turn** — script using OpenRouter to extend existing single-turn examples into 3-5 turn conversations with consistent character memory.
+3. **New dataset variant** — `augmented_curated_multiturn_split_2048/`.
+4. **Training auto-routes** — or expose a CLI flag (`--multiturn`) on the training wrapper. Multi-turn likely improves all models, not just specific ones.
 
 ## Adding a new character
 
