@@ -53,6 +53,7 @@ MODEL_CONFIGS = {
     "qwen3_8b": {
         "hf": "Qwen/Qwen3-8B",
         "quantized": "models/qwen3-8b-4bit",
+        "is_reasoning": True,
     },
 }
 
@@ -106,6 +107,12 @@ def get_learning_rate(model_name: str) -> float:
     of 5e-5. Callers should respect any explicit CLI override before
     applying this value."""
     return PER_MODEL_LEARNING_RATE.get(model_name, 5e-5)
+
+
+def is_reasoning_model(model_name: str) -> bool:
+    """Return True if the model natively emits <think> blocks (CoT/reasoning models).
+    Training data for these should include thinking blocks."""
+    return MODEL_CONFIGS.get(model_name, {}).get("is_reasoning", False)
 
 
 def get_training_defaults(model_name: str) -> dict:

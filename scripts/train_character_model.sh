@@ -230,12 +230,18 @@ fi
 # ============================================================================
 
 
-# Select correct split directory based on max sequence length
+# Select correct split directory based on max sequence length.
+# Reasoning models (Qwen3) prefer augmented_curated_thinking — the dataset
+# variant that includes <think> blocks so the character learns to reason
+# in-voice. Non-reasoning models use the standard augmented_curated.
 SEQ_SUFFIX="_split_${MAX_SEQ_LENGTH}"
 DATA_DIR=""
 DATA_SOURCE=""
 
-if [ -d "raw_data/prepared_data/baseline/augmented_curated${SEQ_SUFFIX}" ]; then
+if is_reasoning_model "$MODEL_NAME" && [ -d "raw_data/prepared_data/baseline/augmented_curated_thinking${SEQ_SUFFIX}" ]; then
+    DATA_DIR="raw_data/prepared_data/baseline/augmented_curated_thinking${SEQ_SUFFIX}"
+    DATA_SOURCE="augmented_curated_thinking"
+elif [ -d "raw_data/prepared_data/baseline/augmented_curated${SEQ_SUFFIX}" ]; then
     DATA_DIR="raw_data/prepared_data/baseline/augmented_curated${SEQ_SUFFIX}"
     DATA_SOURCE="augmented_curated"
 elif [ -d "raw_data/prepared_data/baseline/augmented${SEQ_SUFFIX}" ]; then

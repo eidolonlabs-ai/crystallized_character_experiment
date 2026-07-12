@@ -6,14 +6,15 @@
 # prepared_data/ directory. Data is versioned and consistent for all runs.
 #
 # Generates:
-# - Split variants: base, augmented, augmented_curated (90/10 train/valid)
+# - Split variants: base, augmented, augmented_curated, augmented_curated_thinking (90/10 train/valid)
 # - Pre-truncated at 512, 768, 2048 tokens (intelligent truncation preserving context)
 #
 # Order of operations:
 #   1. Run curate_training_data.py to derive augmented_curated.jsonl from augmented.jsonl
-#   2. For each source variant (base, augmented, augmented_curated, full):
+#   2. Run generate_thinking_data.py to derive augmented_curated_thinking.jsonl from augmented_curated.jsonl
+#   3. For each source variant (base, augmented, augmented_curated, augmented_curated_thinking, full):
 #        split 90/10 → variant_split/
-#        truncate to 512 and 768 tokens → variant_split_512/, variant_split_768/
+#        truncate to 512, 768, and 2048 tokens → variant_split_512/, variant_split_768/, variant_split_2048/
 #
 # Truncation strategy:
 # - Keeps system prompt (character definition)
@@ -49,6 +50,7 @@ fi
 
 echo "============================================================================"
 echo "Preparing All Datasets with Pre-Truncation (512, 768, 2048 tokens)"
+echo "Includes thinking variant for reasoning models"
 echo "============================================================================"
 echo ""
 
@@ -72,9 +74,20 @@ for CHARACTER in "${CHARACTERS[@]}"; do
         python3 scripts/curate_training_data.py 2>&1 | grep -E "(kept|truncated|skipped|Curation)" || true
     fi
 
+    # Derive augmented_curated_thinking.jsonl from augmented_curated.jsonl.
+    # This must run after curation so it has the flattened single-turn data.
+    if [ -f "raw_data/training_data_${CHARACTER}_augmented_curated.jsonl" ] && [ ! -f "raw_data/training_data_${CHARACTER}_augmented_curated_thinking.jsonl" ]; then
+        echo "  Generating thinking blocks for reasoning models..."
+        THINKING_MODEL="${THINKING_GEN_MODEL:-openai/gpt-4o}"
+        python3 scripts/generate_thinking_data.py \
+            --input "raw_data/training_data_${CHARACTER}_augmented_curated.jsonl" \
+            --output "raw_data/training_data_${CHARACTER}_augmented_curated_thinking.jsonl" \
+            --model "$THINKING_MODEL" 2>&1 || echo "  ⚠️  Thinking generation skipped (API key may be missing)"
+    fi
+
     # Determine variants based on character
     if [ "$CHARACTER" = "baseline" ]; then
-        VARIANTS="baseline baseline_augmented baseline_augmented_curated baseline_full"
+        VARIANTS="baseline baseline_augmented baseline_augmented_curated baseline_augmented_curated_thinking baseline_full"
     fi
     
     for VARIANT in $VARIANTS; do

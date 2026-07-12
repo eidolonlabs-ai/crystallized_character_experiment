@@ -27,6 +27,17 @@ get_quantized_model_path() {
     esac
 }
 
+# Whether the model natively emits <think> blocks (reasoning/CoT models).
+# Training data for these models should include thinking blocks so the
+# character learns to reason in-voice.
+is_reasoning_model() {
+    local model="$1"
+    case "$model" in
+        qwen3_8b)         return 0 ;;
+        *)                return 1 ;;
+    esac
+}
+
 VALID_MODELS="mistral_v0_3 llama31_8b qwen25_7b qwen3_8b"
 VALID_CHARACTERS="baseline"
 VALID_VARIANTS="standard deep"
