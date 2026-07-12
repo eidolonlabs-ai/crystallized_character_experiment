@@ -55,9 +55,10 @@ if [ $# -lt 2 ]; then
     echo "  --config PATH         Path to a YAML config (default: auto-generated from"
     echo "                        scripts/model_config.py::DEFAULT_TRAINING)."
     echo "  --fine-tune-type F    lora | dora (default: lora; DoRA is supported natively)."
-    echo "  --mask-prompt         Only compute loss on assistant tokens (modern default)."
-    echo "  --no-mask-prompt      Include the prompt in the loss (current repo default;"
-    echo "                        kept for parity with the existing 8 trained adapters)."
+    echo "  --mask-prompt         Only compute loss on assistant tokens (modern SFT default; repo default)."
+    echo "  --no-mask-prompt      Include the prompt in the loss. Note: with the post-Phase 0 fold,"
+    echo "                        this causes AdamW to amplify the identical ~50-token system-prompt"
+    echo "                        gradient across all examples and diverges Mistral v0.2/v0.3."
     echo "  --grad-checkpoint     Trade compute for memory on <32 GB unified-memory Macs."
     echo "  --optimizer NAME      adam | adamw | muon | sgd | adafactor (default: adamw)."
     echo "  --seed N              PRNG seed (default: 42)."
@@ -216,7 +217,12 @@ else
     VARIANT_SUFFIX=""
 fi
 
-MASK_PROMPT="--no-mask-prompt"
+# Modern SFT default: only compute loss on the assistant response. The
+# `--no-mask-prompt` alternative trains on the full sequence including the
+# (identical, repeated) system prompt, which AdamW's adaptive LR amplifies
+# until training diverges on Mistral v0.2/v0.3 (see commit log for the
+# empirical 10-iter test). Override via --no-mask-prompt on the CLI.
+MASK_PROMPT="--mask-prompt"
 
 # Set quantization suffix for output paths
 if [ "$QUANTIZE" = "4bit" ]; then

@@ -53,17 +53,38 @@ modern recipes (Tulu, OpenHermes) commonly use 0.05-0.1. Keep this small
 
 ## Loss & optimization knobs
 
-### `mask_prompt` — only train on the assistant response (default `false`)
+### `mask_prompt` — only train on the assistant response (default `true`)
 
 When `true`, only assistant tokens contribute to the loss. This is the
-**modern SFT default** (Tulu, OpenHermes, SmolTalk all mask the prompt).
+**modern SFT default** (Tulu, OpenHermes, SmolTalk all mask the prompt)
+and the repo default (`MASK_PROMPT="--mask-prompt"` in
+`scripts/train_character_model.sh`).
 
-We default to `false` here for backward compatibility with the 8 already-
-trained adapters in `adapters/`, which were all trained without masking.
-The Phase 0 chat-template fix changed the data, but those adapters were
-trained on the *pre-fix* data and aren't being re-trained in this PR.
-Switch to `--mask-prompt` for new training runs that include the
-Phase-0-folded data — see [`CHAT_TEMPLATES.md`](CHAT_TEMPLATES.md).
+**Why we switched the default.** The Phase 0 fold puts the character
+system prompt into every training row's first user turn as
+`[SYSTEM] You are Lyra Moonwhisper, ... \n\n[USER] <q>`. That
+~50-token system-prompt block is byte-identical across all 319 training
+examples. With `--no-mask-prompt`, AdamW computes 319 near-identical
+gradient signals for "predict the next token of the system prompt" and
+amplifies those weights until training diverges on Mistral v0.2/v0.3:
+
+| iter | `--no-mask-prompt` (diverging) | `--mask-prompt` (converging) |
+|------|--------------------------------|------------------------------|
+| 1 (val) | **5.434** | 2.354 |
+| 5 (train) | 4.315 | 2.096 |
+| 10 (val) | 7.561 (catastrophic) | **1.638** ✓ |
+| 10 (train) | 8.778 | **1.368** ✓ |
+
+Empirically verified in commit `a6d6988`. Llama family (lower base
+perplexity on the system-prompt tokens) doesn't diverge without mask,
+but is also probably memorizing the prompt rather than learning from
+it. `--mask-prompt` is unambiguously better for this dataset shape.
+
+**Backward-compat:** the 8 pre-Phase-0 adapters in `adapters/` were
+trained with `--no-mask-prompt` and represent a known-bad baseline.
+Re-train them under the new default if you need them; do not re-train
+the diverged post-Phase-0 Mistral v0.2/v0.3 adapters under the old
+default — they will diverge again.
 
 Historical note: an older version of mlx-lm produced NaN loss with
 `--mask-prompt` on Llama 3.1. mlx-lm 0.30.0 doesn't have that bug.
