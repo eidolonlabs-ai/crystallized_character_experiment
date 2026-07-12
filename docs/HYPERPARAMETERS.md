@@ -87,18 +87,18 @@ some base models.
 | 2.5e-5 | 2.699 | **0.771** | 1.159 | ✓ converges cleanly |
 | 1e-5 | 2.699 | 1.100 | 1.404 | ✓ converges |
 
-Mistral v0.2 behaves identically (same tokenizer family). Llama family
-and Mistral v0.1 converge at 5e-5 — they're not affected by the issue.
+Mistral v0.2 and v0.1 behave identically (same tokenizer family). Llama family
+converges at 5e-5 — they're not affected by the issue.
 
 **The fix:** `PER_MODEL_LEARNING_RATE` in `scripts/model_config.py`
-sets `2.5e-5` for Mistral v0.2 and v0.3 only. The bash wrapper reads
+sets `2.5e-5` for all three Mistral variants (v0.1/v0.2/v0.3). The bash wrapper reads
 this override after the variant block and before training starts;
 a `--learning-rate` CLI flag always wins. This preserves the
 `--no-mask-prompt` loss recipe across all 6 models — no cross-model
 comparison confound.
 
 To retrain a Mistral v0.2/v0.3 adapter under the same recipe as
-the working Llama/v0.1 adapters, just run:
+the working Llama adapters, just run:
 
 ```bash
 ./scripts/train_character_model.sh baseline mistral_v0_3
