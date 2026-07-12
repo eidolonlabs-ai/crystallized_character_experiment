@@ -207,10 +207,143 @@ Source data lives as JSONL files at the repo root: `raw_data/training_data_basel
 
 Three variants exist:
 - `base` — original data only (~22 examples)
-- `augmented` — original + synthetic augmentation (~319 examples)
+- `augmented` — original + synthetic augmentation (~355 examples)
 - `full` — largest untruncated dataset (~270 examples)
 
-An `augmented_curated` variant can be created by running `scripts/curate_training_data.py`, which filters low-quality examples and trims long responses.
+An `augmented_curated` variant is created by running `scripts/curate_training_data.py`, which flattens multi-turn to single-turn and trims long responses. An `augmented_curated_thinking` variant extends this further with `<think>` blocks for reasoning models.
+
+## Synthetic data generation: best practices
+
+The seed of 22 hand-written conversations is the anchor. Everything else is LLM-generated scaffolding built on that voice sample. Each layer is additive — it derives from the previous layer, never replaces the seed. The full chain:
+
+```
+22 hand-written (base)
+    ↓  generate_synthetic_data.py  (few-shot generation)
+355 augmented
+    ↓  curate_training_data.py     (flatten to single-turn, trim length)
+355 augmented_curated
+    ↓  generate_thinking_data.py   (prepend <think> inner monologue)
+355 augmented_curated_thinking
+```
+
+All source JSONL files are committed to git. `prepare_all_datasets.sh` processes them once and commits the output. The entire chain is reproducible.
+
+### Layer 1: Base (hand-written)
+
+**Script**: N/A — created manually in `raw_data/training_data_baseline.jsonl`.
+
+**Purpose**: The ground-truth voice sample. These 22 examples define the character's register (archaic formality, elvish blessings, nature metaphors), response length, and conversational range.
+
+**Best practices:**
+- Write 15-30 examples covering different scenarios (greetings, emotional support, lore questions, casual chat)
+- Each example should be 3-6 turns — enough to show conversational rhythm, but not so long they dominate the few-shot prompt
+- Vary user personas (traveler, scholar, child, warrior) so the character's voice generalizes across audiences
+- Include edge cases: the user is rude, confused, or asks something the character can't answer
+- **Don't** include system messages — the character definition is baked into the character prompt, not the seed data
+
+### Layer 2: Augmented (synthetic generation)
+
+**Script**: `scripts/generate_synthetic_data.py`.
+
+**Purpose**: Scale from 22 to 355 examples by having GPT-4o write new conversations in the same voice.
+
+**Technique**: Few-shot generation with random sampling.
+- For each new conversation, randomly sample 3 seed examples as in-context demonstrations
+- Pass the character description (from `character_config.py`) alongside the examples
+- Request 3-6 turn JSON output with explicit format instructions
+
+**Best practices:**
+- **Random few-shot prevents memorization** — sampling different examples each time ensures the LLM generalizes the voice pattern rather than copying specific phrasing
+- **Temperature 0.7** — enough variation that conversations don't feel templated, not so high that the voice drifts
+- **Prompt includes both character definition and examples** — the definition sets constraints (register, tone, topics), the examples show rhythm, length, and specific mannerisms
+- **Validate JSON output** — wrap generation in try/except for `json.JSONDecodeError`; strip markdown code fences (` ```json `)
+- **Shuffle after merging** — interleave real + synthetic so the train/valid split isn't biased by source
+- **Async with sequential loop** — one at a time (not concurrent) to avoid rate-limiting and keep prompt context size manageable
+- **Commit the output** — `training_data_baseline_augmented.jsonl` is versioned so retraining is deterministic
+
+### Layer 3: Curated (flatten + trim)
+
+**Script**: `scripts/curate_training_data.py`.
+
+**Purpose**: Standardize every example to single-turn `[system, user, assistant]` triplets and trim overly long responses.
+
+**Technique**:
+- Extract the last user-assistant pair from each conversation (drops earlier turns)
+- If the assistant response exceeds `max_response_tokens` (default 600), trim the middle — keeps first `keep_start_tokens` (personality setup) and last `keep_end_tokens` (conclusion/elvish blessing)
+- Outputs `training_data_baseline_augmented_curated.jsonl`
+
+**Best practices:**
+- **Trim the middle, not the end** — the character's closing blessing is a key voice marker; truncating it would strip identity
+- **Keep start tokens high enough** — 300 tokens ensures the character's name, setting references, and opening framing survive
+- **Run before thinking generation** — thinking data assumes single-turn curated input; generating thinking on multi-turn data would produce inconsistent `<think>` placement
+- **Verify after curation** — spot-check a few examples to make sure the truncation ellipsis (`[...]`) doesn't land mid-sentence in a way that creates training noise
+- **Commit the output** — `training_data_baseline_augmented_curated.jsonl` is versioned
+
+### Layer 4: Thinking (reasoning prepend)
+
+**Script**: `scripts/generate_thinking_data.py`.
+
+**Purpose**: Prepend `<think>...</think>` inner monologue to each assistant response so reasoning models (Qwen3) learn to think in-character before speaking.
+
+**Technique**: For each curated example, ask GPT-4o "what was the character thinking before they said this?" and prepend the result.
+- Uses the character definition as system context
+- Processes examples concurrently with `asyncio.Semaphore` (max 5 concurrent) for speed
+- Cleans the output: strips stray `<think>` tags, leading labels, quotes
+- Wraps with `<think>\n...\n</think>\n\n` before the original response
+
+**Best practices:**
+- **Concurrent with semaphore** — 5 concurrent requests balances speed against rate limits and prompt context memory
+- **Keep thinking brief** — 2-4 sentences. Long thinking blocks inflate the token count without improving training quality
+- **Match the character's voice** — the thinking prompt explicitly says "use her voice — archaic, mystical, nature-infused" so the inner monologue uses the same register as the outer speech
+- **Clean aggressively** — LLMs love to add labeling ("Think: ...", `<think>...</think>`); strip all wrappers before prepending your own to avoid double-wrapping
+- **Validate before committing** — spot-check that thinking blocks are character-appropriate and not hallucinated facts
+- **Don't generate thinking for non-reasoning models** — Mistral/Llama/Qwen2.5 would tokenize `<think>` as literal text and produce it at inference, which looks broken
+
+### Layer 5: Tool calling (future)
+
+**Script**: TBD — `scripts/generate_tooluse_data.py`.
+
+**Purpose**: Generate multi-turn conversations where the character decides to call a tool, processes the result, and responds.
+
+**Best practices (anticipated):**
+- **Define a tool catalog first** — `search_archives`, `calculate_alignment`, `fetch_lore`. The LLM needs to know what tools exist before it can generate examples of using them
+- **Generate from scratch, not transform** — unlike thinking (which prepends to existing responses), tool calling introduces new messages (tool call + tool result) that don't exist in the source data
+- **Multi-turn format** — `[system, user, assistant(tool_call), tool(result), assistant(response)]`
+- **Include non-tool examples too** — if every training example has a tool call, the model will call tools even when not needed. Mix tool and non-tool examples to teach discretion
+- **Pass tool definitions at inference** — training teaches the model *how* to format tool calls; inference supplies *which* tools are available via the system prompt
+
+### General principles across all layers
+
+- **Each layer is additive** — a new script reads the previous layer's output and writes a new file. Never overwrite the source.
+- **Seed determinism** — `random.seed(42)` on splits, fixed prompts on generation. Reproducibility matters.
+- **Commit source JSONL** — the input files (`training_data_baseline_*.jsonl`) are versioned so any commit is a checkpoint you can re-split from
+- **`prepare_all_datasets.sh` is the single entry point** — it knows the layer order and only runs generation scripts when the output file is missing
+- **Validate at each layer** — `validate_all_jsonl.py` catches parse errors; `validate_dataset_quality.py` checks role patterns and character consistency
+- **Spot-check aggressively** — after any generation run, manually review 5-10 random examples. Voice drift is invisible to automated validation but obvious to a human reader
+
+### How much data?
+
+There's no universal formula, but these heuristics work in practice for LoRA character fine-tuning:
+
+| Layer | Minimum | Sweet spot | Diminishing returns | Rationale |
+|-------|---------|------------|---------------------|-----------|
+| **Base** | 10 | 20-30 | 50+ | You need enough variety for few-shot to generalize. Below 10, the LLM latches onto specific phrases. Above 50, the marginal new voice signal is near zero. |
+| **Augmented** | 50 | 300-500 | 1000+ | LoRA with rank 16 has limited capacity — it can learn a voice from 300 examples just as well as 3000. More data increases training time linearly with negligible quality gain. |
+| **Curated** | N/A | N/A | N/A | Curate the same number as augmented (flatten, don't drop). Every input produces one output. |
+| **Thinking** | N/A | N/A | N/A | Same as curated — one `<think>` block per existing response. |
+| **Tool calling** (future) | 50 | 100-200 | 500+ | Tool calling is a narrower skill than voice — you need enough examples to learn the format but far fewer than learning a personality. |
+
+**Key insight**: LoRA's low rank (16) is the bottleneck, not data volume. With 7.6B frozen parameters and only ~11M trainable, the adapter physically can't absorb more voice information past a few hundred examples. More data after that point just makes training slower — val loss plateaus but never improves.
+
+**When to add more data:**
+- If the character has distinct sub-personalities (formal vs. casual, different emotional registers), you need more examples to cover the range — aim for the high end of the sweet spot
+- If eval shows the model defaulting to base-model behavior on certain question types, add targeted examples for those gaps rather than scaling uniformly
+- If adding a new layer (thinking, tool calling), generate fresh — don't mix layers in one script, keep each layer as a separate dataset variant
+
+**When to stop:**
+- When val loss stops dropping (current models all converge well before 5 epochs)
+- When spot-checking shows voice consistency across all prompt types
+- When you can't tell the difference between epoch 3 and epoch 5 in chat
 
 ## Adding a new model
 
