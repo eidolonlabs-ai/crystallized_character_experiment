@@ -23,6 +23,8 @@ if [ $# -lt 2 ]; then
     echo "============================================================================"
     echo ""
     echo "Usage: $0 <character> <model_name> [variant] [quantize]"
+    echo "       [--config PATH] [--fine-tune-type {lora,dora}] [--mask-prompt|--no-mask-prompt]"
+    echo "       [--grad-checkpoint] [--optimizer NAME] [--seed N]"
     echo ""
     echo "CHARACTERS:"
     echo "  baseline      - Baseline Lyra character model"
@@ -49,16 +51,55 @@ if [ $# -lt 2 ]; then
     echo "  4bit          - 4-bit quantized (smaller size, faster inference)"
     echo "  (default)     - Uses 'full' if not specified"
     echo ""
+    echo "OPTIONAL FLAGS:"
+    echo "  --config PATH         Path to a YAML config (default: auto-generated from"
+    echo "                        scripts/model_config.py::DEFAULT_TRAINING)."
+    echo "  --fine-tune-type F    lora | dora (default: lora; DoRA is supported natively)."
+    echo "  --mask-prompt         Only compute loss on assistant tokens (modern default)."
+    echo "  --no-mask-prompt      Include the prompt in the loss (current repo default;"
+    echo "                        kept for parity with the existing 8 trained adapters)."
+    echo "  --grad-checkpoint     Trade compute for memory on <32 GB unified-memory Macs."
+    echo "  --optimizer NAME      adam | adamw | muon | sgd | adafactor (default: adamw)."
+    echo "  --seed N              PRNG seed (default: 42)."
+    echo ""
     echo "EXAMPLES:"
     echo "  $0 baseline mistral                # Train Baseline with Mistral (standard, full precision)"
     echo "  $0 baseline llama31_8b standard full # Train Baseline with Llama 3.1 8B (standard, full precision)"
+    echo "  $0 baseline mistral --fine-tune-type dora  # Train with DoRA instead of LoRA"
+    echo "  $0 baseline mistral --config configs/lyra_mistral7b_v3.yaml"
     echo ""
     echo "============================================================================"
     exit 1
 fi
 
-CHARACTER="$1"
-MODEL_NAME="$2"
+# Parse optional --flag arguments before the positional ones.
+# Usage: train_character_model.sh <character> <model> [variant] [quantize] [--config PATH] [--fine-tune-type {lora,dora}] [--mask-prompt] [--grad-checkpoint] [--optimizer NAME] [--seed N]
+CONFIG_PATH=""
+FINE_TUNE_TYPE_OVERRIDE=""
+MASK_PROMPT_OVERRIDE=""
+GRAD_CHECKPOINT_OVERRIDE=""
+OPTIMIZER_OVERRIDE=""
+SEED_OVERRIDE=""
+POSITIONAL=()
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --config) CONFIG_PATH="$2"; shift 2 ;;
+        --fine-tune-type) FINE_TUNE_TYPE_OVERRIDE="$2"; shift 2 ;;
+        --mask-prompt) MASK_PROMPT_OVERRIDE="--mask-prompt"; shift ;;
+        --no-mask-prompt) MASK_PROMPT_OVERRIDE="--no-mask-prompt"; shift ;;
+        --grad-checkpoint) GRAD_CHECKPOINT_OVERRIDE="--grad-checkpoint"; shift ;;
+        --optimizer) OPTIMIZER_OVERRIDE="$2"; shift 2 ;;
+        --seed) SEED_OVERRIDE="$2"; shift 2 ;;
+        --*) echo "Unknown flag: $1" >&2; exit 2 ;;
+        *) POSITIONAL+=("$1"); shift ;;
+    esac
+done
+
+# Now POSITIONAL contains only the original positionals.
+set -- "${POSITIONAL[@]}"
+CHARACTER="${1:-}"
+MODEL_NAME="${2:-}"
 VARIANT="${3:-standard}"
 QUANTIZE="${4:-full}"
 
@@ -212,6 +253,9 @@ else
 fi
 
 OUTPUT_ADAPTER="adapters/${CHARACTER}_${MODEL_NAME}_qlora${VARIANT_SUFFIX}"
+# train.log lives next to the adapter. Captured from mlx_lm lora stdout+stderr
+# so the loss curve survives the shell session and parse_train_log.py can read it.
+TRAIN_LOG="${OUTPUT_ADAPTER}/train.log"
 OUTPUT_MLX="models/${CHARACTER}_${MODEL_NAME}_mlx${QUANTIZE_SUFFIX}${VARIANT_SUFFIX}"
 
 # ============================================================================
@@ -274,17 +318,60 @@ echo "  Model: $BASE_MODEL"
 echo "  Data: $DATA_DIR"
 echo ""
 
-python scripts/train_mlx.py \
-  --model "$BASE_MODEL" \
-  --data_dir "$DATA_DIR" \
-  --output_dir "$OUTPUT_ADAPTER" \
-  --epochs "$EPOCHS" \
-  --batch-size "$BATCH_SIZE" \
-  --gradient-accumulation-steps "$GRAD_ACCUM_STEPS" \
-  --num-layers "$NUM_LAYERS" \
-  --learning-rate "$LEARNING_RATE" \
-  --max-seq-length "$MAX_SEQ_LENGTH" \
-  $MASK_PROMPT
+# Resolve the YAML config the trainer will consume:
+#   1. If the user passed --config PATH, use that.
+#   2. Otherwise build one on the fly from scripts/model_config.py defaults
+#      so users always get the modern recipe (rank 16, alpha 32, adamw,
+#      cosine schedule, etc.) without having to remember to pass --config.
+EFFECTIVE_CONFIG="$CONFIG_PATH"
+if [ -z "$EFFECTIVE_CONFIG" ]; then
+    EFFECTIVE_CONFIG="$(mktemp -t lora_config.XXXXXX.yaml)"
+    python -c "
+import sys
+sys.path.insert(0, 'scripts')
+from model_config import render_yaml_config
+print(render_yaml_config('$MODEL_NAME', variant='$VARIANT'), end='')
+" > "$EFFECTIVE_CONFIG"
+    echo "  Auto-generated config: $EFFECTIVE_CONFIG"
+fi
+
+# Resolve mask-prompt / fine-tune-type / grad-checkpoint / optimizer / seed:
+# CLI flag override > YAML value > repo default. The YAML is the modern
+# recipe; the CLI flag wins when present.
+MASK_PROMPT_FLAG="$MASK_PROMPT"
+if [ -n "$MASK_PROMPT_OVERRIDE" ]; then MASK_PROMPT_FLAG="$MASK_PROMPT_OVERRIDE"; fi
+FINE_TUNE_TYPE_FLAG=""
+if [ -n "$FINE_TUNE_TYPE_OVERRIDE" ]; then FINE_TUNE_TYPE_FLAG="$FINE_TUNE_TYPE_OVERRIDE"; fi
+GRAD_CHECKPOINT_FLAG=""
+if [ -n "$GRAD_CHECKPOINT_OVERRIDE" ]; then GRAD_CHECKPOINT_FLAG="$GRAD_CHECKPOINT_OVERRIDE"; fi
+OPTIMIZER_FLAG=""
+if [ -n "$OPTIMIZER_OVERRIDE" ]; then OPTIMIZER_FLAG="$OPTIMIZER_OVERRIDE"; fi
+SEED_FLAG=""
+if [ -n "$SEED_OVERRIDE" ]; then SEED_FLAG="$SEED_OVERRIDE"; fi
+
+TRAIN_CMD=(python scripts/train_mlx.py
+    --model "$BASE_MODEL"
+    --data_dir "$DATA_DIR"
+    --output_dir "$OUTPUT_ADAPTER"
+    --epochs "$EPOCHS"
+    --batch-size "$BATCH_SIZE"
+    --gradient-accumulation-steps "$GRAD_ACCUM_STEPS"
+    --num-layers "$NUM_LAYERS"
+    --learning-rate "$LEARNING_RATE"
+    --max-seq-length "$MAX_SEQ_LENGTH"
+    --config "$EFFECTIVE_CONFIG"
+    $MASK_PROMPT_FLAG
+)
+[ -n "$FINE_TUNE_TYPE_FLAG" ] && TRAIN_CMD+=(--fine-tune-type "$FINE_TUNE_TYPE_FLAG")
+[ -n "$GRAD_CHECKPOINT_FLAG" ] && TRAIN_CMD+=($GRAD_CHECKPOINT_FLAG)
+[ -n "$OPTIMIZER_FLAG" ] && TRAIN_CMD+=(--optimizer "$OPTIMIZER_FLAG")
+[ -n "$SEED_FLAG" ] && TRAIN_CMD+=(--seed "$SEED_FLAG")
+
+# Tee stdout+stderr to train.log so the loss curve survives the shell session.
+# parse_train_log.py reads from there; plot_loss.py visualizes the result.
+mkdir -p "$OUTPUT_ADAPTER"
+echo "  Train log: $TRAIN_LOG"
+"${TRAIN_CMD[@]}" 2>&1 | tee "$TRAIN_LOG"
 
 echo ""
 echo "  ✓ LoRA training complete."

@@ -10,6 +10,11 @@ This project explores the "crystallization" of AI character personalities by fin
 | [`DATA_PIPELINE.md`](DATA_PIPELINE.md) | Data preparation, splitting, and truncation |
 | [`MLX_SETUP.md`](MLX_SETUP.md) | MLX installation, training commands, memory tuning |
 | [`A_B_TEST_COMMANDS.md`](A_B_TEST_COMMANDS.md) | Comparing standard vs deep variants, test prompts |
+| [`docs/HYPERPARAMETERS.md`](docs/HYPERPARAMETERS.md) | Knob-by-knob rationale: rank, alpha, scheduler, optimizer, etc. |
+| [`docs/CHAT_TEMPLATES.md`](docs/CHAT_TEMPLATES.md) | The Phase 0 system-prompt gotcha and how to verify your model |
+| [`docs/MULTI_TURN.md`](docs/MULTI_TURN.md) | Why training data is single-turn and how to extend it |
+| [`docs/PREFERENCE_TUNING.md`](docs/PREFERENCE_TUNING.md) | DPO/IPO/KTO — what's missing from mlx-lm 0.30 and how to add it |
+| [`configs/README.md`](configs/README.md) | Per-model YAML overrides for the training recipe |
 | [`E002_crystallized_character.md`](E002_crystallized_character.md) | Original experiment proposal and results |
 | [`CLAUDE.md`](CLAUDE.md) | Reference for AI coding assistants |
 
@@ -202,3 +207,4 @@ This copies the merged MLX model to LM Studio's models directory.
 
 - **Hardware**: Optimized for Apple Silicon (M1/M2/M3/M4 Macs) using MLX
 - **No PyTorch**: MLX-exclusive for better performance
+- **No QLoRA**: mlx-lm uses native fp16/bf16 on Apple Silicon's unified memory; NF4 quantization (Dettmers et al. 2023) isn't needed and isn't implemented here. If you want to experiment with QLoRA-style training on a non-Apple GPU, this repo won't help — that's a different stack (bitsandbytes + HuggingFace PEFT).

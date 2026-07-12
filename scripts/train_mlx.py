@@ -114,7 +114,14 @@ def train(config):
         "--num-layers", str(config.num_layers),
         "--learning-rate", str(config.learning_rate),
         "--max-seq-length", str(config.max_seq_length),
+        "--optimizer", config.optimizer,
+        "--seed", str(config.seed),
     ]
+
+    # Optional config file (YAML) takes precedence over per-flag CLI settings
+    # when both are provided; mlx_lm.lora merges them internally.
+    if config.config:
+        cmd.extend(["-c", config.config])
     
     # Add resume file if found
     if resume_file:
@@ -127,12 +134,14 @@ def train(config):
     # Add gradient accumulation if > 1
     if config.gradient_accumulation_steps > 1:
         cmd.extend(["--grad-accumulation-steps", str(config.gradient_accumulation_steps)])
+
+    if config.grad_checkpoint:
+        cmd.append("--grad-checkpoint")
     
-    # Add fine-tune type
-    if config.dora:
-        cmd.extend(["--fine-tune-type", "dora"])
-    else:
-        cmd.extend(["--fine-tune-type", "lora"])
+    # Add fine-tune type (--dora is kept as a back-compat alias for --fine-tune-type dora).
+    if config.dora and config.fine_tune_type == "lora":
+        config.fine_tune_type = "dora"
+    cmd.extend(["--fine-tune-type", config.fine_tune_type])
     
     masking_status = "with prompt masking" if config.mask_prompt else "without prompt masking"
     print(f"Running {'DoRA' if config.dora else 'LoRA'} training {masking_status}...")
@@ -173,8 +182,18 @@ if __name__ == "__main__":
     parser.add_argument("--gradient-accumulation-steps", type=int, default=2, help="Number of gradient accumulation steps")
     parser.add_argument("--mask-prompt", action="store_true", default=False, help="Mask prompt during training (only compute loss on completion)")
     parser.add_argument("--no-mask-prompt", action="store_false", dest="mask_prompt", help="Disable prompt masking")
-    parser.add_argument("--qlora", action="store_true", help="Legacy flag (ignored, use --dora if you want DoRA)")
-    parser.add_argument("--dora", action="store_true", help="Use DoRA instead of standard LoRA")
+    parser.add_argument("--qlora", action="store_true", help="Legacy flag (ignored, use --fine-tune-type dora)")
+    parser.add_argument("--dora", action="store_true", help="Back-compat alias for --fine-tune-type dora")
+    parser.add_argument(
+        "--fine-tune-type",
+        choices=["lora", "dora", "full"],
+        default="lora",
+        help="Type of fine-tuning. lora=Low-Rank Adaptation, dora=Decomposed LoRA (Liu et al. 2024), full=full fine-tune. Default: lora.",
+    )
+    parser.add_argument("--optimizer", default="adamw", help="Optimizer (adam | adamw | muon | sgd | adafactor). Default: adamw.")
+    parser.add_argument("--seed", type=int, default=42, help="PRNG seed. Default: 42.")
+    parser.add_argument("--grad-checkpoint", action="store_true", help="Use gradient checkpointing (reduces memory).")
+    parser.add_argument("--config", default=None, help="Path to a YAML config file passed via mlx_lm lora -c. Overrides per-flag settings.")
     
     args = parser.parse_args()
     train(args)

@@ -28,7 +28,11 @@ from pathlib import Path
 # Allow `python scripts/evaluate_character.py` to find model_config regardless
 # of CWD by adding scripts/ to sys.path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_config import get_model_config as _get_model_config_dict  # noqa: E402
+from model_config import (
+    get_model_config as _get_model_config_dict,
+    get_system_prompt as _get_system_prompt,
+)  # noqa: E402
+from fold_system_prompt import fold as _fold_row  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +161,31 @@ def _extract_response(stdout: str) -> str:
     return "\n".join(out[-10:]).strip() if out else ""
 
 
+def render_prompt_for_eval(character: str, raw_prompt: str) -> str:
+    """Wrap a bare eval prompt with the character system prompt, applying the
+    Phase 0 fold so eval matches training distribution.
+
+    Training now folds the system message into the first user turn as
+    `[SYSTEM] ...\\n\\n[USER] ...` (because Mistral v0.3 + most Llama
+    tokenizers silently drop `role=system`). To match, eval prompts go
+    through the same fold.
+
+    If the prompt is already a `[SYSTEM] ...` block (or doesn't need folding),
+    returns it unchanged.
+    """
+    if raw_prompt.lstrip().startswith("[SYSTEM]"):
+        return raw_prompt
+    system = _get_system_prompt(character)
+    row = {
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": raw_prompt},
+        ]
+    }
+    folded = _fold_row(row)
+    return folded["messages"][0]["content"]
+
+
 # ---------------------------------------------------------------------------
 # Metrics
 # ---------------------------------------------------------------------------
@@ -276,9 +305,10 @@ def main():
             per_prompt = []
             words, name_h, setting_h, blessing_h, archaic_h = [], [], [], [], []
             for i, p in enumerate(prompts, 1):
-                response = generate(chat_model, adapter_dir, p, args.max_tokens)
+                folded_prompt = render_prompt_for_eval(args.character, p)
+                response = generate(chat_model, adapter_dir, folded_prompt, args.max_tokens)
                 m = score_response(response, args.character)
-                per_prompt.append({"prompt": p, "response": response, "metrics": m})
+                per_prompt.append({"prompt": folded_prompt, "response": response, "metrics": m})
                 if not m.get("empty"):
                     words.append(m["n_words"])
                     name_h.append(m.get("name_hits", 0))

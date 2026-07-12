@@ -82,6 +82,22 @@ adapters/<character>_<model>_qlora[_deep]/         # LoRA weights (gitignored)
 models/<character>_<model>_mlx_q4[_deep]/          # fused+quantized MLX (gitignored)
 ```
 
+## Modern training knobs (Phase 1)
+
+- **Per-model YAML configs at `configs/`** — overrides `scripts/model_config.py::DEFAULT_TRAINING` for a single model. See `configs/README.md` for the schema. Use `--config PATH` on the bash wrapper to apply.
+- **`--fine-tune-type {lora,dora}`** — DoRA is supported natively by `mlx-lm 0.30`; the wrapper exposes it as a flag without any code change. Default is `lora`. See `docs/HYPERPARAMETERS.md`.
+- **`--mask-prompt`** — modern SFT recipes mask the prompt and only compute loss on the assistant response. mlx-lm 0.30 supports this cleanly. Default is `--no-mask-prompt` for parity with the 8 already-trained adapters. See `docs/HYPERPARAMETERS.md` and `docs/CHAT_TEMPLATES.md` for why.
+- **`--optimizer {adamw,adam,muon,sgd,adafactor}`** — pick the optimizer at the bash layer; default is `adamw`.
+- **`--grad-checkpoint`** — enable on <32 GB unified memory Macs.
+
+## Phase 0 chat-template gotcha
+
+`tokenizer.apply_chat_template()` on Mistral v0.3 (and likely all Llama chat tokenizers) silently drops messages with `role="system"`. The repo's `scripts/fold_system_prompt.py` rewrites every row's system message into the first user turn as `[SYSTEM] ...\n\n[USER] ...`. The fold is applied automatically in `truncate_training_data.py` and `evaluate_character.py`. See `docs/CHAT_TEMPLATES.md`.
+
+## Preference tuning
+
+`mlx-lm 0.30` does not ship DPO/IPO/KTO/SimPO. If you want preference tuning, see `docs/PREFERENCE_TUNING.md` for the recommended path.
+
 ## Key Conventions & Gotchas
 
 - **Characters, models, and variants are validated by string match** in both training and chat scripts. Adding a new model requires editing the `case` statement in `get_model_config`/`get_quantized_model_path` of **both** `scripts/train_character_model.sh` and `chat_character.sh`. The same applies to `test_trained_models.sh`'s quantized-model mapping.

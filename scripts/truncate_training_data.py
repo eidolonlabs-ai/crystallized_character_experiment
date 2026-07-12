@@ -2,12 +2,36 @@
 """
 Intelligently truncate/split training data to fit sequence length limits
 while preserving character fidelity and complete responses.
+
+Multi-turn support
+------------------
+`process_file()` accepts rows of any turn count. The truncate strategy
+walks the conversation backwards from the last assistant message, keeping
+as many recent turns as fit. The full system prompt is preserved as long as
+it fits; otherwise the row is dropped (you can't truncate the character
+definition without losing the character's voice).
+
+Phase 0 chat-template fix
+-------------------------
+Every row is passed through `fold_system_prompt.fold()` before tokenization,
+so the system message ends up inside the first user turn as
+`[SYSTEM] ... \\n\\n [USER] ...`. This is required because Mistral v0.3 (and
+most Llama-family chat tokenizers) silently drop `role=system` messages
+when `apply_chat_template()` is called. See `docs/CHAT_TEMPLATES.md` for the
+full explanation.
 """
 import json
 import argparse
 from pathlib import Path
 from transformers import AutoTokenizer
 import shutil
+
+# Same directory as this file → import fold without packaging the repo.
+import sys
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+from fold_system_prompt import fold as _fold_system
 
 def count_tokens(text, tokenizer):
     """Count tokens in text including chat template formatting"""
@@ -243,7 +267,11 @@ def process_file(input_file, output_file, max_length, tokenizer):
         if "messages" not in item:
             processed_data.append(item)
             continue
-        
+
+        # Phase 0: fold the system message into the first user turn so the
+        # character definition survives tokenizers that drop `role=system`
+        # (Mistral v0.3, most Llama families). Idempotent.
+        item = _fold_system(item)
         messages = item["messages"]
         
         # Fix roles FIRST to ensure we are working with clean data

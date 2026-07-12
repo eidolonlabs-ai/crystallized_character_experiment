@@ -1,0 +1,40 @@
+# Lyra character fine-tune on Mistral-7B-Instruct-v0.3 — modern recipe.
+#
+# This is the canonical example referenced from `configs/README.md`. To use it:
+#
+#   ./scripts/train_character_model.sh baseline mistral_v0_3 --config configs/lyra_mistral7b_v3.yaml
+#
+# (Without `--config`, train_character_model.sh builds an equivalent YAML on
+# the fly from scripts/model_config.py::DEFAULT_TRAINING — this file exists
+# so users have something to copy and modify.)
+
+model: mistralai/Mistral-7B-Instruct-v0.3
+
+# mlx_lm lora keys (see /Users/.../mlx_lm/lora.py::CONFIG_DEFAULTS for the
+# full schema; this file mirrors a curated subset).
+train: true
+fine_tune_type: lora          # or "dora"
+optimizer: adamw              # adam | adamw | muon | sgd | adafactor
+seed: 42
+mask_prompt: false            # see docs/HYPERPARAMETERS.md for the trade-off
+grad_checkpoint: false        # enable on <32 GB unified memory
+
+# LoRA structure. mlx-lm calls alpha "scale"; alpha/rank = 2.0 is a common
+# starting point that keeps the effective LR in a stable range.
+lora_parameters:
+  rank: 16                    # mlx-lm default is 8; we use 16 for more capacity
+  dropout: 0.05
+  scale: 32                   # alpha, doubles rank
+
+# Run-specific knobs (passed as CLI flags by train_character_model.sh, not
+# from this file). Kept here as comments so reviewers see the full recipe:
+#
+# num_layers: 8               # standard; 16 for deep
+# learning_rate: 5e-5         # standard; 2.5e-5 for deep
+# max_seq_length: 512          # standard; 768 for deep
+# batch_size: 1
+# grad_accumulation_steps: 2   # standard; 4 for deep
+# epochs: 5
+# save_every: 50
+# steps_per_report: 10
+# steps_per_eval: 50
