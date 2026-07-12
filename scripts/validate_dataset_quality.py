@@ -7,12 +7,61 @@ Checks:
 3. Proper user/assistant alternation
 4. Complete conversation turns
 5. No empty messages
-"""
 
+Supports two row shapes (Post-Phase 0 modernization):
+
+  Pre-fold (legacy ChatML, source JSONLs):
+    {messages: [{role: system, content: ...}, {role: user, ...}, {role: assistant, ...}]}
+
+  Post-fold (Phase 0, the canonical shape in prepared_data/):
+    {messages: [{role: user, content: "[SYSTEM] ...\\n\\n[USER] ..."},
+                {role: assistant, content: ...}]}
+
+The fold exists because Mistral v0.3 (and most Llama chat tokenizers)
+silently drop `role=system` in apply_chat_template(), so character
+fine-tunes need the system text inline in the user turn. This validator
+accepts both shapes — see _extract_system_text() below.
+"""
 import json
 import sys
 from pathlib import Path
 from collections import defaultdict
+
+# Markers match scripts/fold_system_prompt.py::FOLD_MARKER_SYSTEM/USER.
+FOLD_MARKER_SYSTEM = "[SYSTEM]"
+FOLD_MARKER_USER = "[USER]"
+
+
+def _extract_system_text(messages):
+    """Return (system_text, conversational_messages) for a row.
+
+    Handles both shapes:
+      - Pre-fold: messages[0].role == 'system' -> returns its content,
+        conversational = messages[1:].
+      - Post-fold: messages[0].role == 'user' with content starting
+        with `[SYSTEM] ... \\n\\n [USER] ...` -> returns the substring
+        between `[SYSTEM] ` and `\\n\\n[USER]`, conversational = messages.
+
+    Returns (None, messages) if no system text can be found.
+    """
+    if not messages:
+        return None, messages
+    first = messages[0]
+    role = first.get("role")
+    content = first.get("content", "") or ""
+
+    if role == "system":
+        return content, messages[1:]
+
+    if role == "user" and content.lstrip().startswith(FOLD_MARKER_SYSTEM):
+        body = content.lstrip()[len(FOLD_MARKER_SYSTEM):].lstrip()
+        sep = f"\n\n{FOLD_MARKER_USER}"
+        if sep in body:
+            return body.split(sep, 1)[0], messages
+        return body, messages
+
+    return None, messages
+
 
 def validate_dataset(dataset_path, character_name):
     """Validate a single dataset for quality."""
@@ -29,33 +78,34 @@ def validate_dataset(dataset_path, character_name):
         'character_inconsistency': 0,
         'issues': []
     }
-    
+
     # Character-specific system prompts
     system_prompts = {
         'baseline': ['lyra', 'moonwhisper', 'elven', 'archives', 'celestial'],
     }
-    
+
     try:
         with open(dataset_path, 'r') as f:
             for line_num, line in enumerate(f, 1):
                 try:
                     example = json.loads(line)
                     results['total_examples'] += 1
-                    
+
                     if 'messages' not in example:
                         results['issues'].append(f"Line {line_num}: No 'messages' field")
                         continue
-                    
+
                     messages = example['messages']
-                    
-                    # Check 1: System prompt present
-                    if messages and messages[0].get('role') == 'system':
+
+                    # Check 1: System prompt present (pre-fold ChatML or
+                    # post-fold Phase 0 shape — see _extract_system_text).
+                    system_text, conv_msgs = _extract_system_text(messages)
+                    if system_text is not None and system_text.strip():
                         results['has_system_prompt'] += 1
-                        
+
                         # Check character consistency
-                        system_text = messages[0].get('content', '').lower()
                         char_keywords = system_prompts.get(character_name, [])
-                        if any(kw.lower() in system_text for kw in char_keywords):
+                        if any(kw.lower() in system_text.lower() for kw in char_keywords):
                             results['character_consistency'] += 1
                         else:
                             results['character_inconsistency'] += 1
@@ -66,7 +116,7 @@ def validate_dataset(dataset_path, character_name):
                         results['missing_system_prompt'] += 1
                         results['issues'].append(f"Line {line_num}: Missing system prompt")
                         continue
-                    
+
                     # Check 2: Empty messages
                     has_empty = False
                     for msg in messages:
@@ -78,84 +128,89 @@ def validate_dataset(dataset_path, character_name):
                             )
                     if has_empty:
                         results['has_empty_messages'] += 1
-                    
-                    # Check 3: Message alternation (system, user, assistant, user, ...)
+
+                    # Check 3: Message alternation over the conversational
+                    # tail (system stripped). Expected: user, assistant,
+                    # user, assistant, ...
                     is_valid_alternation = True
-                    expected_role = 'user'  # After system
-                    
-                    for idx, msg in enumerate(messages[1:], 1):  # Skip system
+                    expected_role = 'user'
+
+                    for idx, msg in enumerate(conv_msgs):
                         role = msg.get('role', '').lower()
-                        
+
                         if role not in ['user', 'assistant']:
                             is_valid_alternation = False
                             results['issues'].append(
                                 f"Line {line_num}: Invalid role '{role}' at position {idx}"
                             )
                             break
-                        
+
                         if role != expected_role:
                             is_valid_alternation = False
                             results['issues'].append(
                                 f"Line {line_num}: Expected '{expected_role}' at position {idx}, got '{role}'"
                             )
                             break
-                        
+
                         # Toggle expected role
                         expected_role = 'assistant' if expected_role == 'user' else 'user'
-                    
+
                     if is_valid_alternation:
                         results['proper_alternation'] += 1
                     else:
                         results['improper_alternation'] += 1
-                    
-                    # Check 4: Complete turns (should end with assistant message)
-                    if len(messages) >= 3:  # At least system + user + assistant
-                        if messages[-1].get('role') == 'assistant':
+
+                    # Check 4: Complete turns (should end with assistant message).
+                    # Folded rows have >= 2 (user + assistant); legacy ChatML
+                    # rows have >= 3 (system + user + assistant).
+                    if len(conv_msgs) >= 2:
+                        if conv_msgs[-1].get('role') == 'assistant':
                             results['complete_turns'] += 1
                         else:
                             results['incomplete_turns'] += 1
                             results['issues'].append(
-                                f"Line {line_num}: Incomplete turn (ends with {messages[-1].get('role')})"
+                                f"Line {line_num}: Incomplete turn (ends with {conv_msgs[-1].get('role')})"
                             )
                     else:
                         results['incomplete_turns'] += 1
-                        results['issues'].append(f"Line {line_num}: Too few messages (only {len(messages)})")
-                
+                        results['issues'].append(f"Line {line_num}: Too few messages (only {len(conv_msgs)} messages)")
+
                 except json.JSONDecodeError as e:
                     results['issues'].append(f"Line {line_num}: JSON decode error - {e}")
-    
+
     except FileNotFoundError:
         print(f"Error: Dataset file not found: {dataset_path}")
         return None
-    
+
     return results
+
 
 def format_results(character, dataset_name, results):
     """Format validation results for display."""
     if results is None:
         return f"\n❌ {character}/{dataset_name}: FILE NOT FOUND\n"
-    
+
     total = results['total_examples']
     if total == 0:
         return f"\n⚠️  {character}/{dataset_name}: EMPTY DATASET\n"
-    
+
     # Calculate pass/fail metrics
     system_prompt_pass = results['has_system_prompt'] == total
     alternation_pass = results['proper_alternation'] == total
     complete_turns_pass = results['complete_turns'] == total
     char_consistency_pass = results['character_consistency'] == total
     no_empty_pass = results['has_empty_messages'] == 0
-    
+
     overall_pass = (
-        system_prompt_pass and 
-        alternation_pass and 
-        complete_turns_pass and 
-        char_consistency_pass and 
+        system_prompt_pass and
+        alternation_pass and
+        complete_turns_pass and
+        char_consistency_pass and
         no_empty_pass
     )
-    
+
     status = "✅" if overall_pass else "⚠️ "
-    
+
     output = f"\n{status} {character}/{dataset_name}\n"
     output += f"   Total examples: {total}\n"
     output += f"   • System prompts: {results['has_system_prompt']}/{total} {'✓' if system_prompt_pass else '❌'}\n"
@@ -163,68 +218,69 @@ def format_results(character, dataset_name, results):
     output += f"   • Proper alternation: {results['proper_alternation']}/{total} {'✓' if alternation_pass else '❌'}\n"
     output += f"   • Complete turns: {results['complete_turns']}/{total} {'✓' if complete_turns_pass else '❌'}\n"
     output += f"   • No empty messages: {total - results['has_empty_messages']}/{total} {'✓' if no_empty_pass else '❌'}\n"
-    
+
     if results['issues']:
         output += f"   Issues ({len(results['issues'])} found):\n"
         for issue in results['issues'][:5]:  # Show first 5 issues
             output += f"     - {issue}\n"
         if len(results['issues']) > 5:
             output += f"     ... and {len(results['issues']) - 5} more\n"
-    
+
     return output
+
 
 def main():
     """Validate all character datasets."""
     base_path = Path("raw_data/prepared_data")
-    
+
     characters = ['baseline']
-    
+
     # Preferred dataset selection: augmented_curated > augmented > base
     dataset_variants = {
         'baseline': ['augmented_curated_split_512', 'augmented_split_512', 'base_split_512'],
     }
-    
+
     print("╔════════════════════════════════════════════════════════════════════════════╗")
     print("║              DATASET QUALITY VALIDATION REPORT                            ║")
     print("╚════════════════════════════════════════════════════════════════════════════╝")
-    
+
     all_results = {}
-    
+
     for character in characters:
         print(f"\n{'='*80}")
         print(f"Character: {character.upper()}")
         print('='*80)
-        
+
         variants = dataset_variants[character]
         for variant in variants:
             dataset_path = base_path / character / variant / "train.jsonl"
-            
+
             # Only validate if the variant exists
             if not dataset_path.exists():
                 continue
-            
+
             results = validate_dataset(str(dataset_path), character)
             all_results[f"{character}/{variant}"] = results
-            
+
             output = format_results(character, variant, results)
             print(output)
-    
+
     # Summary
     print(f"\n{'='*80}")
     print("SUMMARY")
     print('='*80)
-    
+
     total_datasets = len(all_results)
     passing = 0
-    
+
     for dataset_name, results in all_results.items():
         if results is None:
             continue
-        
+
         total = results['total_examples']
         if total == 0:
             continue
-        
+
         # Check if all validations pass
         if (results['has_system_prompt'] == total and
             results['proper_alternation'] == total and
@@ -232,13 +288,14 @@ def main():
             results['character_consistency'] == total and
             results['has_empty_messages'] == 0):
             passing += 1
-    
+
     print(f"\nDatasets passing all checks: {passing}/{total_datasets}")
-    
+
     if passing == total_datasets:
         print("\n✅ ALL DATASETS PASSED VALIDATION")
     else:
         print(f"\n⚠️  {total_datasets - passing} dataset(s) need review")
+
 
 if __name__ == "__main__":
     main()
