@@ -11,8 +11,8 @@
 #   ./train_character_model.sh <character> <model_name> [variant] [quantize]
 #
 # Examples:
-#   ./scripts/train_character_model.sh baseline mistral
-#   ./scripts/train_character_model.sh baseline mistral deep 4bit
+#   ./scripts/train_character_model.sh baseline mistral_v0_3
+#   ./scripts/train_character_model.sh baseline mistral_v0_3 deep 4bit
 #
 # ============================================================================
 
@@ -30,16 +30,8 @@ if [ $# -lt 2 ]; then
     echo "  baseline      - Baseline Lyra character model"
     echo ""
     echo "MODEL NAMES:"
-    echo "  Mistral family:"
-    echo "    mistral       - Mistral 7B Instruct v0.3 (alias for mistral_v0_3)"
     echo "    mistral_v0_3  - Mistral 7B Instruct v0.3"
-    echo "    mistral_v0_2  - Mistral 7B Instruct v0.2"
-    echo "    mistral_v0_1  - Mistral 7B Instruct v0.1"
-    echo "  Llama family:"
-    echo "    llama         - Meta Llama 3.1 8B (alias for llama31_8b)"
-    echo "    llama31_8b    - Meta Llama 3.1 8B Instruct (latest)"
-    echo "    llama3_8b     - Meta Llama 3 8B Instruct"
-    echo "    llama2_7b     - Meta Llama 2 7B Chat"
+    echo "    llama31_8b    - Meta Llama 3.1 8B Instruct"
     echo ""
     echo "VARIANTS (optional):"
     echo "  standard      - Standard training (8-layer LoRA, 5e-5 LR, 512 seq len)"
@@ -58,16 +50,16 @@ if [ $# -lt 2 ]; then
     echo "  --mask-prompt         Only compute loss on assistant tokens."
     echo "  --no-mask-prompt      Include the prompt in the loss (repo default; cross-model comparable)."
     echo "  --learning-rate LR    Override the per-model learning rate (default 5e-5; 2.5e-5 for"
-    echo "                        mistral_v0_2 / mistral_v0_3 — see PER_MODEL_LEARNING_RATE)."
+    echo "                        mistral_v0_3 — see PER_MODEL_LEARNING_RATE)."
     echo "  --grad-checkpoint     Trade compute for memory on <32 GB unified-memory Macs."
     echo "  --optimizer NAME      adam | adamw | muon | sgd | adafactor (default: adamw)."
     echo "  --seed N              PRNG seed (default: 42)."
     echo ""
     echo "EXAMPLES:"
-    echo "  $0 baseline mistral                # Train Baseline with Mistral (standard, full precision)"
+    echo "  $0 baseline mistral_v0_3                # Train Baseline with Mistral (standard, full precision)"
     echo "  $0 baseline llama31_8b standard full # Train Baseline with Llama 3.1 8B (standard, full precision)"
-    echo "  $0 baseline mistral --fine-tune-type dora  # Train with DoRA instead of LoRA"
-    echo "  $0 baseline mistral --config configs/lyra_mistral7b_v3.yaml"
+    echo "  $0 baseline mistral_v0_3 --fine-tune-type dora  # Train with DoRA instead of LoRA"
+    echo "  $0 baseline mistral_v0_3 --config configs/lyra_mistral7b_v3.yaml"
     echo ""
     echo "============================================================================"
     exit 1
@@ -113,13 +105,6 @@ QUANTIZE="${4:-full}"
 # Ensure we are in the project root
 cd "$(dirname "$0")/.."
 
-# Normalize aliases — "mistral" → "mistral_v0_3", "llama" → "llama31_8b"
-if [ "$MODEL_NAME" = "mistral" ]; then
-    MODEL_NAME="mistral_v0_3"
-elif [ "$MODEL_NAME" = "llama" ]; then
-    MODEL_NAME="llama31_8b"
-fi
-
 # Validate character
 if [ "$CHARACTER" != "baseline" ]; then
     echo "Error: Unknown character '$CHARACTER'"
@@ -157,7 +142,7 @@ get_model_config() { get_hf_model "$1"; }
 MODEL_CONFIG=$(get_model_config "$MODEL_NAME")
 if [ -z "$MODEL_CONFIG" ]; then
     echo "Error: Unknown model '$MODEL_NAME'"
-    echo "Available models: mistral, mistral_v0_3, mistral_v0_2, mistral_v0_1, llama, llama31_8b, llama3_8b, llama2_7b"
+    echo "Available models: mistral_v0_3, llama31_8b"
     exit 1
 fi
 
@@ -179,21 +164,6 @@ fi
 # Extract Model Configuration
 # ============================================================================
 BASE_MODEL=$(get_model_config "$MODEL_NAME")
-
-# Llama-2 is numerically unstable in its native fp16 (activation outliers
-# overflow fp16 -> inf -> NaN loss). Train against a local bf16 conversion,
-# which shares fp32's exponent range and avoids the overflow.
-if [ "$MODEL_NAME" = "llama2_7b" ]; then
-    LLAMA2_BF16="models/llama-2-7b-chat-bf16"
-    if [ ! -d "$LLAMA2_BF16" ]; then
-        echo "  Converting $BASE_MODEL to bf16 (one-time) -> $LLAMA2_BF16"
-        python -m mlx_lm convert \
-            --hf-path "$BASE_MODEL" \
-            --mlx-path "$LLAMA2_BF16" \
-            --dtype bfloat16
-    fi
-    BASE_MODEL="$LLAMA2_BF16"
-fi
 
 # ============================================================================
 # Training Parameters (Variant-Based)
@@ -219,9 +189,9 @@ else
     VARIANT_SUFFIX=""
 fi
 
-# Apply per-model learning-rate override (Mistral v0.2/v0.3 only — see
+# Apply per-model learning-rate override (Mistral v0.3 only — see
 # model_config.py::PER_MODEL_LEARNING_RATE for why). The standard variant's
-# 5e-5 default diverges on those two because AdamW amplifies the gradient
+# 5e-5 default diverges on it because AdamW amplifies the gradient
 # on the identical post-Phase-0 system-prompt block until loss explodes.
 # 2.5e-5 converges cleanly with the same loss recipe.
 if [ -n "$LEARNING_RATE_OVERRIDE" ]; then

@@ -89,7 +89,7 @@
 
 ### Phase 2b: MLX Training (Current)
 *   **Date**: Jan 2, 2026
-*   **Model**: Multiple options (Mistral 7B, Llama 3.1 8B, Llama 3 8B, Llama 2 7B)
+*   **Model**: Mistral 7B v0.3, Llama 3.1 8B
 *   **Hardware**: Apple Silicon (M1/M2/M3/M4)
 *   **Environment**: Native MLX on Apple Silicon
 *   **Method**: LoRA (native on-device quantization, rank 8-16 configurable)
@@ -115,17 +115,17 @@
 
 1.  **Execute Training Pipeline**:
     ```bash
-    ./scripts/train_character_model.sh baseline mistral deep
+    ./scripts/train_character_model.sh baseline mistral_v0_3 deep
     ```
 
 2.  **Interactive Testing**: Run the model locally to chat with trained character.
     ```bash
-    ./chat_character.sh baseline mistral
+    ./chat_character.sh baseline mistral_v0_3
     ```
 
 3.  **Model Export**: Deploy to LM Studio or other inference platforms.
     ```bash
-    ./scripts/export_to_lmstudio.sh baseline mistral
+    ./scripts/export_to_lmstudio.sh baseline mistral_v0_3
     ```
 
 4.  **Evaluation**: Validate character consistency and personality embedding.

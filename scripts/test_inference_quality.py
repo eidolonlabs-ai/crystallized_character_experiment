@@ -177,7 +177,7 @@ def main():
     print("To interact with models:")
     print(f"  ./chat_character.sh {character} <model_name>")
     print("\nExample:")
-    print(f"  ./chat_character.sh {character} mistral")
+    print(f"  ./chat_character.sh {character} mistral_v0_3")
     print("="*70 + "\n")
 
 if __name__ == "__main__":

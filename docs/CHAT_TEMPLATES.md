@@ -21,8 +21,7 @@ Verified status per model
 | Model | System message rendered? | Workaround applied |
 |-------|--------------------------|--------------------|
 | `mistral_v0_3` (Mistral 7B Instruct v0.3) | **No — silently dropped** | Folded into first user turn (`[SYSTEM] ... [USER] ...`) |
-| `mistral_v0_2`, `mistral_v0_1` | Likely same as v0.3 (untested — gated) | Fold applied defensively in `truncate_training_data.py` |
-| `llama31_8b`, `llama3_8b`, `llama2_7b` | **Untested — gated repos, 401 in our env** | Fold applied defensively in `truncate_training_data.py` |
+| `llama31_8b` | **Untested — gated repos, 401 in our env** | Fold applied defensively in `truncate_training_data.py` |
 
 How the fold works
 ------------------
@@ -99,6 +98,6 @@ tok.chat_template = """{% for m in messages %}[INST] {{m['content']}} [/INST]{% 
 ```
 
 …and supply your own `system` rendering. This works but needs testing
-across every base model in the matrix (6 currently) and breaks the moment
+across every base model in the matrix (2 currently) and breaks the moment
 mlx-lm updates its template rendering. Fold-and-go avoids that surface
 area.

@@ -31,12 +31,12 @@ The pipeline takes conversation history for a character, formats it as training 
                              │
           ┌──────────────────┼──────────────────┐
           ▼                                     ▼
-   adapters/baseline_mistral_qlora/    models/baseline_mistral_mlx_fp16/
-   (LoRA weights, ~10 MB)              (full merged model, ~13 GB)
-          │
-          ▼
-   chat_character.sh baseline mistral
-   (loads base model + applies LoRA adapter at inference time)
+adapters/baseline_mistral_v0_3_qlora/    models/baseline_mistral_v0_3_mlx_fp16/
+(LoRA weights, ~10 MB)              (full merged model, ~13 GB)
+        │
+        ▼
+chat_character.sh baseline mistral_v0_3
+(loads base model + applies LoRA adapter at inference time)
 ```
 
 ## Core concepts
@@ -61,8 +61,8 @@ MLX (Apple's machine learning framework) is designed specifically for unified me
 `scripts/train_character_model.sh` is the entry point. It takes a character name, model name, and optional variant/quantize flags:
 
 ```bash
-./scripts/train_character_model.sh baseline mistral
-./scripts/train_character_model.sh baseline llama deep 4bit
+./scripts/train_character_model.sh baseline mistral_v0_3
+./scripts/train_character_model.sh baseline llama31_8b deep 4bit
 ```
 
 Here's what happens step by step:
@@ -73,11 +73,10 @@ The script sources `scripts/model_config.sh` which maps model names to HuggingFa
 
 | You type    | Resolves to                               |
 |-------------|-------------------------------------------|
-| `mistral`   | `mistralai/Mistral-7B-Instruct-v0.3`      |
-| `llama`     | `meta-llama/Llama-3.1-8B-Instruct`        |
-| `llama2_7b` | `meta-llama/Llama-2-7b-chat-hf`           |
+| `mistral_v0_3` | `mistralai/Mistral-7B-Instruct-v0.3`   |
+| `llama31_8b` | `meta-llama/Llama-3.1-8B-Instruct`    |
 
-Aliases (`mistral`, `llama`) are normalized to canonical names (`mistral_v0_3`, `llama31_8b`) so adapter paths are consistent regardless of which name you use.
+All model names use their canonical form directly — no aliases. Adapter paths are always consistent.
 
 Training hyperparameters come from the variant selection:
 
@@ -108,7 +107,7 @@ The script calls `scripts/train_mlx.py`, which wraps `python -m mlx_lm lora` wit
 python -m mlx_lm lora \
     --model <huggingface-repo> \
     --train --data <prepared-data-dir> \
-    --adapter-path adapters/baseline_mistral_qlora \
+    --adapter-path adapters/baseline_mistral_v0_3_qlora \
     --epochs 5 --batch-size 1 --gradient-accumulation-steps 2 \
     --num-layers 8 --learning-rate 5e-5 --max-seq-length 512 \
     --no-mask-prompt --save-every 50
@@ -124,12 +123,12 @@ Key details:
 After training, the LoRA weights are "fused" (merged) into the base model to create a standalone model file:
 
 ```bash
-rm -rf models/baseline_mistral_mlx_fp16         # clean stale output
-mkdir -p models/baseline_mistral_mlx_fp16
+rm -rf models/baseline_mistral_v0_3_mlx_fp16         # clean stale output
+mkdir -p models/baseline_mistral_v0_3_mlx_fp16
 python -m mlx_lm fuse \
     --model <huggingface-repo> \
-    --adapter-path adapters/baseline_mistral_qlora \
-    --save-path models/baseline_mistral_mlx_fp16
+    --adapter-path adapters/baseline_mistral_v0_3_qlora \
+    --save-path models/baseline_mistral_v0_3_mlx_fp16
 ```
 
 The output directory is cleaned first to avoid write conflicts with leftover files from previous runs.
@@ -137,7 +136,7 @@ The output directory is cleaned first to avoid write conflicts with leftover fil
 With `4bit` quantization mode, the fused model is also quantized:
 ```
 python -m mlx_lm fuse ... --quantize --q-bits 4
-# Output: models/baseline_mistral_mlx_q4/
+# Output: models/baseline_mistral_v0_3_mlx_q4/
 ```
 
 ## Path conventions
@@ -168,15 +167,13 @@ Examples:
 ```
 python -m mlx_lm chat \
     --model <base-model-or-hf-repo> \
-    --adapter-path adapters/baseline_mistral_qlora \
+    --adapter-path adapters/baseline_mistral_v0_3_qlora \
     --system-prompt "You are Lyra Moonwhisper..."
 ```
 
 If the quantized 4-bit model exists locally, it's used for faster loading. Otherwise the script falls back to the HuggingFace repo ID, which mlx-lm auto-downloads (and on first use, quantizes to 4-bit into the local `models/` cache). The local-quantized path is a performance optimization — the common case today is the HF fallback, since `train_character_model.sh` produces fused fp16 outputs (`models/<char>_<model>_mlx_fp16[_deep]`) and not 4-bit conversions. Run `python -m mlx_lm convert --hf-path <hf_repo> --mlx-path models/<name>-4bit --quantize --q-bits 4` once per model to pre-create the local quantized cache.
 
-Llama 2 has an additional fallback: if `models/llama-2-7b-chat-bf16` exists (created by the training script the first time you train llama2), it's preferred over both the 4-bit and HF-fp16 paths. Loading llama2 from HF in fp16 triggers activation-outlier overflow, so the bf16 cache is required for stable inference.
-
-The system prompt is hand-written in `scripts/character_config.sh` and `chat_character.sh` — it's not extracted from training data. If you update the character definition in the training data, update it in both scripts too.
+The system prompt is hand-written in `chat_character.sh` — it's not extracted from training data. If you update the character definition in the training data, update it in both scripts too.
 
 ## Data pipeline in detail
 
@@ -233,7 +230,7 @@ That's it — the training script, chat script, and test scripts all derive thei
 1. **Create training data**: `raw_data/training_data_newchar.jsonl` in ChatML format
 2. **Add system prompt** in `scripts/character_config.sh` and `chat_character.sh`
 3. **Prepare data**: Run `./prepare_all_datasets.sh` (edit it to include the new character)
-4. **Train**: `./scripts/train_character_model.sh newchar mistral`
+4.  **Train**: `./scripts/train_character_model.sh newchar mistral_v0_3`
 
 ## Metal environment variables
 
@@ -247,22 +244,6 @@ Three environment variables are critical for stable MLX training on Apple Silico
 
 These are set automatically by `train_character_model.sh`.
 
-## Llama 2 special case
-
-Llama 2's native fp16 format is numerically unstable — activation outliers overflow fp16's narrow exponent range, producing infinities and then NaN loss. The training script handles this by converting the model to bf16 (which shares fp32's exponent range) before training:
-
-```bash
-if [ "$MODEL_NAME" = "llama2_7b" ]; then
-    python -m mlx_lm convert \
-        --hf-path meta-llama/Llama-2-7b-chat-hf \
-        --mlx-path models/llama-2-7b-chat-bf16 \
-        --dtype bfloat16
-    BASE_MODEL="models/llama-2-7b-chat-bf16"
-fi
-```
-
-This conversion happens once and is cached on disk.
-
 ## Files of interest
 
 | File | Purpose |
@@ -273,7 +254,7 @@ This conversion happens once and is cached on disk.
 | `scripts/train_character_model.sh` | Entry point: orchestrates the full pipeline |
 | `scripts/train_mlx.py` | Thin Python wrapper around `mlx_lm lora` |
 | `prepare_all_datasets.sh` | One-shot data prep (split + truncate) |
-| `train_baseline_suite.sh` | Runs training across all 6 models |
+| `train_baseline_suite.sh` | Runs training across both supported models |
 | `chat_character.sh` | Interactive chat with a trained adapter |
 | `test_trained_models.sh` | Smoke-tests all adapters for a character |
 | `scripts/split_training_data.py` | Splits JSONL into train/valid (standalone utility) |
@@ -286,10 +267,10 @@ This conversion happens once and is cached on disk.
 
 ## Training suite flow
 
-`train_baseline_suite.sh` trains all 6 model variants sequentially, tracking successes and failures:
+`train_baseline_suite.sh` trains both supported models sequentially, tracking successes and failures:
 
 ```
-mistral_v0_1 → mistral_v0_2 → mistral_v0_3 → llama2_7b → llama3_8b → llama31_8b
+mistral_v0_3 → llama31_8b
 ```
 
-This provides a full comparison matrix — 6 models × 2 variants (standard/deep) = 12 configurations. The suite is designed for A/B testing: train everything, then compare voice quality across architectures.
+This provides a full comparison matrix — 2 models × 2 variants (standard/deep) = 4 configurations. The suite is designed for A/B testing: train everything, then compare voice quality across architectures.

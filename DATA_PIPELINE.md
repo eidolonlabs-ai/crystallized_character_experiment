@@ -95,7 +95,7 @@ This locks in the data for reproducibility.
 ### Step 3: Train Model
 
 ```bash
-./scripts/train_character_model.sh baseline mistral
+./scripts/train_character_model.sh baseline mistral_v0_3
 ```
 
 The training script:

@@ -111,13 +111,11 @@ def find_adapters(character: str) -> list[Path]:
 
 
 def resolve_chat_model(model_name: str) -> str:
-    """Same priority as chat_character.sh: llama2→bf16, else local quantized,
-    else HF repo. Returns the path/repo string mlx_lm expects."""
+    """Same priority as chat_character.sh: local quantized, else HF repo.
+    Returns the path/repo string mlx_lm expects."""
     cfg = _get_model_config_dict(model_name) or {}
     quantized = cfg.get("quantized")
     hf = cfg.get("hf")
-    if model_name == "llama2_7b" and Path("models/llama-2-7b-chat-bf16").exists():
-        return "models/llama-2-7b-chat-bf16"
     if quantized and Path(quantized).exists():
         return quantized
     return hf or ""

@@ -22,12 +22,8 @@ if [ ! -d ".venv" ]; then
 fi
 
 MODELS=(
-    "mistral_v0_1"  # Mistral 7B v0.1
-    "mistral_v0_2"  # Mistral 7B v0.2
-    "mistral_v0_3"  # Mistral 7B v0.3 (latest; matches the "mistral" alias)
-    "llama2_7b"     # Llama 2 7B chat
-    "llama3_8b"     # Llama 3 8B Instruct
-    "llama31_8b"    # Llama 3.1 8B Instruct (latest)
+    "mistral_v0_3"  # Mistral 7B v0.3
+    "llama31_8b"    # Llama 3.1 8B Instruct
 )
 
 CHARACTERS=("baseline")

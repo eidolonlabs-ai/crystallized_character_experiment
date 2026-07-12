@@ -20,15 +20,13 @@ This trains baseline character across all supported models.
 ### Train Individual Models
 ```bash
 # Standard variant
-./scripts/train_character_model.sh baseline mistral
+./scripts/train_character_model.sh baseline mistral_v0_3
 
 # Deep variant (more aggressive fine-tuning)
-./scripts/train_character_model.sh baseline mistral deep
+./scripts/train_character_model.sh baseline mistral_v0_3 deep
 
 # Different base models
 ./scripts/train_character_model.sh baseline llama31_8b
-./scripts/train_character_model.sh baseline llama3_8b
-./scripts/train_character_model.sh baseline llama2_7b
 ```
 
 ## Training Parameter Comparison
@@ -64,20 +62,20 @@ You are Lyra Moonwhisper, an ancient elven sage who dwells in the Celestial Arch
 ### Interactive Chat
 ```bash
 # Chat with trained baseline/mistral
-./chat_character.sh baseline mistral
+./chat_character.sh baseline mistral_v0_3
 
 # Chat with trained baseline/mistral (deep variant)
-./chat_character.sh baseline mistral deep
+./chat_character.sh baseline mistral_v0_3 deep
 ```
 
 ### Direct MLX Chat
 ```bash
 # With LoRA adapter (lightweight)
 python -m mlx_lm chat --model models/mistral-7b-instruct-v0.3-4bit \
-  --adapter-path adapters/baseline_mistral_qlora
+  --adapter-path adapters/baseline_mistral_v0_3_qlora
 
 # With merged model (standalone)
-python -m mlx_lm chat --model models/baseline_mistral_mlx_q4
+python -m mlx_lm chat --model models/baseline_mistral_v0_3_mlx_q4
 ```
 
 ## Test Prompts (in order of difficulty)

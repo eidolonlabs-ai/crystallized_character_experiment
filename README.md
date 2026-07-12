@@ -54,10 +54,10 @@ pip install -r requirements.txt
 ./train_baseline_suite.sh run
 
 # Or train a single model
-./scripts/train_character_model.sh baseline mistral
+./scripts/train_character_model.sh baseline mistral_v0_3
 
 # 5. Chat with your trained model
-./chat_character.sh baseline mistral
+./chat_character.sh baseline mistral_v0_3
 ```
 
 ## MLX Training (Apple Silicon)
@@ -75,27 +75,22 @@ The project uses **MLX** exclusively for optimal performance on Apple Silicon Ma
 **Train individual models:**
 ```bash
 # Train Baseline with Mistral 7B (standard)
-./scripts/train_character_model.sh baseline mistral
+./scripts/train_character_model.sh baseline mistral_v0_3
 
 # Deep variant
-./scripts/train_character_model.sh baseline mistral deep
+./scripts/train_character_model.sh baseline mistral_v0_3 deep
 
 # Chat with trained models
-./chat_character.sh baseline mistral
-./chat_character.sh baseline mistral deep
+./chat_character.sh baseline mistral_v0_3
+./chat_character.sh baseline mistral_v0_3 deep
 ```
 
 ### Available Models
 
-| Model ID | Base Model | Size | Notes |
-|----------|-----------|------|-------|
-| `mistral` | Mistral 7B v0.3 | 7B | **Default Mistral** — alias for mistral_v0_3 |
-| `mistral_v0_2` | Mistral 7B v0.2 | 7B | Older version |
-| `mistral_v0_1` | Mistral 7B v0.1 | 7B | Oldest version |
-| `llama` | Llama 3.1 8B | 8B | **Default Llama** — alias for llama31_8b |
-| `llama31_8b` | Llama 3.1 8B | 8B | Latest |
-| `llama3_8b` | Llama 3 8B | 8B | Previous generation |
-| `llama2_7b` | Llama 2 7B | 7B | Classic, stable |
+| Model ID | Base Model | Size |
+|----------|-----------|------|
+| `mistral_v0_3` | Mistral 7B v0.3 | 7B |
+| `llama31_8b` | Llama 3.1 8B | 8B |
 
 ### Training Variants
 
@@ -116,8 +111,7 @@ The project uses **MLX** exclusively for optimal performance on Apple Silicon Ma
 #### Step 2: Run Training
 ```bash
 # All-in-one training (auto-trains, merges)
-./scripts/train_character_model.sh baseline mistral
-```
+./scripts/train_character_model.sh baseline mistral_v0_3```
 
 The script will:
 1. Load base model
@@ -128,10 +122,10 @@ The script will:
 #### Step 3: Chat/Test
 ```bash
 # With LoRA adapter (lightweight, ~10MB):
-python -m mlx_lm chat --model models/mistral-7b-instruct-v0.3-4bit --adapter-path adapters/baseline_mistral_qlora
+python -m mlx_lm chat --model models/mistral-7b-instruct-v0.3-4bit --adapter-path adapters/baseline_mistral_v0_3_qlora
 
 # With merged model (self-contained):
-python -m mlx_lm chat --model models/baseline_mistral_mlx_q4
+python -m mlx_lm chat --model models/baseline_mistral_v0_3_mlx_q4
 ```
 
 ## Setup (Local - macOS with Apple Silicon)
@@ -176,7 +170,7 @@ python scripts/curate_training_data.py --input raw_data/training_data_baseline_a
 ### 4. Train the Model
 Start consolidated training:
 ```bash
-./scripts/train_character_model.sh baseline mistral deep
+./scripts/train_character_model.sh baseline mistral_v0_3 deep
 ```
 
 ## Model Outputs
@@ -197,7 +191,7 @@ Each training run produces:
 
 ### Export to LM Studio
 ```bash
-./scripts/export_to_lmstudio.sh baseline mistral
+./scripts/export_to_lmstudio.sh baseline mistral_v0_3
 ./scripts/export_to_lmstudio.sh baseline llama31_8b deep
 ```
 

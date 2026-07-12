@@ -7,7 +7,7 @@
 #   ./chat_character.sh <character> <model_name> [variant]
 #
 # Examples:
-#   ./chat_character.sh baseline mistral
+#   ./chat_character.sh baseline mistral_v0_3
 #
 # ============================================================================
 
@@ -22,23 +22,15 @@ if [ $# -lt 2 ]; then
     echo "  baseline      - Baseline Lyra character model"
     echo ""
     echo "MODEL NAMES:"
-    echo "  Mistral family:"
-    echo "    mistral       - Mistral 7B Instruct v0.3 (alias for mistral_v0_3)"
     echo "    mistral_v0_3  - Mistral 7B Instruct v0.3"
-    echo "    mistral_v0_2  - Mistral 7B Instruct v0.2"
-    echo "    mistral_v0_1  - Mistral 7B Instruct v0.1"
-    echo "  Llama family:"
-    echo "    llama         - Meta Llama 3.1 8B (alias for llama31_8b)"
-    echo "    llama31_8b    - Meta Llama 3.1 8B Instruct (latest)"
-    echo "    llama3_8b     - Meta Llama 3 8B Instruct"
-    echo "    llama2_7b     - Meta Llama 2 7B Chat"
+    echo "    llama31_8b    - Meta Llama 3.1 8B Instruct"
     echo ""
     echo "VARIANTS (optional):"
     echo "  standard      - Standard training variant (default)"
     echo "  deep          - Deep training variant"
     echo ""
     echo "EXAMPLES:"
-    echo "  $0 baseline mistral              # Chat with baseline/mistral (standard)"
+    echo "  $0 baseline mistral_v0_3              # Chat with baseline/mistral (standard)"
     echo ""
     echo "============================================================================"
     exit 1
@@ -94,19 +86,12 @@ source "$SCRIPT_DIR_CHAT/scripts/model_config.sh"
 # Construct Model & Adapter Paths
 # ============================================================================
 
-# Normalize aliases — "mistral" → "mistral_v0_3", "llama" → "llama31_8b"
-# This ensures adapter paths are consistent whether you use the alias or full name
-if [ "$MODEL_NAME" = "mistral" ]; then
-    MODEL_NAME="mistral_v0_3"
-elif [ "$MODEL_NAME" = "llama" ]; then
-    MODEL_NAME="llama31_8b"
-fi
 QUANTIZED_MODEL=$(get_quantized_model_path "$MODEL_NAME")
 HF_MODEL=$(get_hf_model "$MODEL_NAME")
 
 if [ -z "$QUANTIZED_MODEL" ] || [ -z "$HF_MODEL" ]; then
     echo "Error: Unknown model '$MODEL_NAME'"
-    echo "Available models: mistral, mistral_v0_3, mistral_v0_2, mistral_v0_1, llama, llama31_8b, llama3_8b, llama2_7b"
+    echo "Available models: mistral_v0_3, llama31_8b"
     exit 1
 fi
 
@@ -123,14 +108,9 @@ ADAPTER_PATH="adapters/${CHARACTER}_${MODEL_NAME}_qlora${VARIANT_SUFFIX}"
 # Validation
 # ============================================================================
 
-# Choose base model for inference:
-#   1. Llama 2 needs the bf16 conversion (created by train_character_model.sh);
-#      loading its native fp16 from HF triggers activation-outlier overflow.
-#   2. Otherwise prefer a local quantized model if one exists.
-#   3. Otherwise fall back to the HF repo (mlx-lm auto-downloads on first use).
-if [ "$MODEL_NAME" = "llama2_7b" ] && [ -d "models/llama-2-7b-chat-bf16" ]; then
-    CHAT_MODEL="models/llama-2-7b-chat-bf16"
-elif [ -d "$QUANTIZED_MODEL" ]; then
+# Choose base model: prefer a local quantized model if one exists,
+# otherwise fall back to the HF repo (mlx-lm auto-downloads on first use).
+if [ -d "$QUANTIZED_MODEL" ]; then
     CHAT_MODEL="$QUANTIZED_MODEL"
 else
     CHAT_MODEL="$HF_MODEL"

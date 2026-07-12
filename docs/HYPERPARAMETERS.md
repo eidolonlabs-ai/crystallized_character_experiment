@@ -60,7 +60,7 @@ recipes (Tulu, OpenHermes, SmolTalk) all mask the prompt. The repo
 default is `false` (`MASK_PROMPT="--no-mask-prompt"` in
 `scripts/train_character_model.sh`) for **cross-model comparability**:
 every supported base model converges under this recipe, so the loss
-signal is the same across the 6-model matrix.
+signal is the same across the 2-model matrix.
 
 If you want to flip the default for a single run, pass
 `--mask-prompt` on the CLI. Don't change the repo default without
@@ -69,7 +69,7 @@ considering how it affects cross-model comparisons.
 Historical note: an older version of mlx-lm produced NaN loss with
 `--mask-prompt` on Llama 3.1. mlx-lm 0.30.0 doesn't have that bug.
 
-### Per-model learning rate (Mistral v0.2/v0.3 only)
+### Per-model learning rate (Mistral v0.3 only)
 
 The Phase 0 fold puts the character system prompt into every training
 row's first user turn as `[SYSTEM] You are Lyra Moonwhisper, ... \n\n[USER] <q>`.
@@ -87,17 +87,16 @@ some base models.
 | 2.5e-5 | 2.699 | **0.771** | 1.159 | ✓ converges cleanly |
 | 1e-5 | 2.699 | 1.100 | 1.404 | ✓ converges |
 
-Mistral v0.2 and v0.1 behave identically (same tokenizer family). Llama family
-converges at 5e-5 — they're not affected by the issue.
+Llama 3.1 8B converges at 5e-5 — it's not affected by the issue.
 
 **The fix:** `PER_MODEL_LEARNING_RATE` in `scripts/model_config.py`
-sets `2.5e-5` for all three Mistral variants (v0.1/v0.2/v0.3). The bash wrapper reads
+sets `2.5e-5` for Mistral v0.3. The bash wrapper reads
 this override after the variant block and before training starts;
 a `--learning-rate` CLI flag always wins. This preserves the
-`--no-mask-prompt` loss recipe across all 6 models — no cross-model
+`--no-mask-prompt` loss recipe across both models — no cross-model
 comparison confound.
 
-To retrain a Mistral v0.2/v0.3 adapter under the same recipe as
+To retrain a Mistral v0.3 adapter under the same recipe as
 the working Llama adapters, just run:
 
 ```bash

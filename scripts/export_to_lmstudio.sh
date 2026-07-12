@@ -6,7 +6,7 @@
 # Usage: ./export_to_lmstudio.sh <character> <model_name> [variant]
 #
 # Examples:
-#   ./export_to_lmstudio.sh baseline mistral
+#   ./export_to_lmstudio.sh baseline mistral_v0_3
 #   ./export_to_lmstudio.sh baseline llama31_8b
 #
 # This script copies the merged and quantized MLX model to LM Studio's
@@ -18,7 +18,7 @@ if [ $# -lt 2 ]; then
     echo "Usage: $0 <character> <model_name> [variant]"
     echo ""
     echo "Characters: baseline"
-    echo "Models: mistral, llama31_8b, llama3_8b, llama2_7b"
+    echo "Models: mistral_v0_3, llama31_8b"
     echo "Variant: standard (default) or deep"
     exit 1
 fi

@@ -6,15 +6,15 @@ The easiest way to train models is using the consolidated training script:
 
 ```bash
 # Train a single model
-./scripts/train_character_model.sh baseline mistral
+./scripts/train_character_model.sh baseline mistral_v0_3
 
 # Train all baseline models at once
 ./train_baseline_suite.sh test    # Preview
 ./train_baseline_suite.sh run     # Execute
 
 # Chat with trained models
-./chat_character.sh baseline mistral
-./chat_character.sh baseline mistral deep
+./chat_character.sh baseline mistral_v0_3
+./chat_character.sh baseline mistral_v0_3 deep
 ```
 
 ## Installation
@@ -35,14 +35,14 @@ The consolidated training script handles everything automatically:
 
 ```bash
 # Train with standard variant (8-layer LoRA, 512 seq length)
-./scripts/train_character_model.sh baseline mistral
+./scripts/train_character_model.sh baseline mistral_v0_3
 
 # Train with deep variant (16-layer LoRA, 768 seq length)
-./scripts/train_character_model.sh baseline mistral deep
+./scripts/train_character_model.sh baseline mistral_v0_3 deep
 
 # Train on different models
 ./scripts/train_character_model.sh baseline llama31_8b
-./scripts/train_character_model.sh baseline llama2_7b
+./scripts/train_character_model.sh baseline llama31_8b
 ```
 
 What the script does automatically:
@@ -75,12 +75,12 @@ python scripts/train_mlx.py \
 ```
 
 **Characters**: baseline
-**Models**: mistral, llama31_8b, llama3_8b, llama2_7b
+**Models**: mistral_v0_3, llama31_8b
 **Variants**: standard (default), deep
 
 **Example**:
 ```bash
-./scripts/train_character_model.sh baseline mistral deep
+./scripts/train_character_model.sh baseline mistral_v0_3 deep
 ```
 
 ### train_mlx.py (Advanced)
@@ -126,7 +126,7 @@ Training Configuration:
 ```bash
 python -m mlx_lm chat \
     --model models/mistral-7b-instruct-v0.3-4bit \
-    --adapter-path adapters/baseline_mistral_qlora \
+    --adapter-path adapters/baseline_mistral_v0_3_qlora \
     --temp 0.7 \
     --max-tokens 500
 ```
@@ -135,7 +135,7 @@ python -m mlx_lm chat \
 ```bash
 python -m mlx_lm generate \
     --model models/mistral-7b-instruct-v0.3-4bit \
-    --adapter-path adapters/baseline_mistral_qlora \
+    --adapter-path adapters/baseline_mistral_v0_3_qlora \
     --prompt "Who are you?" \
     --max-tokens 200
 ```

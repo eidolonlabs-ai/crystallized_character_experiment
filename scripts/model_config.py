@@ -28,52 +28,23 @@ DEFAULT_TRAINING = {
     "seed": 42,
 }
 
-# Per-model learning-rate overrides. Mistral v0.1/v0.2/v0.3 all diverge at
-# the repo-wide 5e-5 default under --no-mask-prompt (AdamW amplifies the
-# gradient on the identical ~50-token system prompt until loss explodes:
-# train 0.7 -> 8.6 in 30 iters). At 2.5e-5 all three converge cleanly.
-# Llama family converges fine at 5e-5. See docs/HYPERPARAMETERS.md for
-# the empirical 10/30-iter comparison.
+# Per-model learning-rate overrides. Mistral v0.3 diverges at the repo-wide
+# 5e-5 default under --no-mask-prompt (AdamW amplifies the gradient on the
+# identical ~50-token system prompt until loss explodes). At 2.5e-5 it
+# converges cleanly. Llama 3.1 8B converges fine at 5e-5.
+# See docs/HYPERPARAMETERS.md for the empirical comparison.
 PER_MODEL_LEARNING_RATE = {
-    "mistral_v0_1": 2.5e-5,
-    "mistral_v0_2": 2.5e-5,
     "mistral_v0_3": 2.5e-5,
 }
 
 MODEL_CONFIGS = {
-    # Mistral family
     "mistral_v0_3": {
         "hf": "mistralai/Mistral-7B-Instruct-v0.3",
         "quantized": "models/mistral-7b-instruct-v0.3-4bit",
     },
-    "mistral": {
-        "hf": "mistralai/Mistral-7B-Instruct-v0.3",
-        "quantized": "models/mistral-7b-instruct-v0.3-4bit",
-    },
-    "mistral_v0_2": {
-        "hf": "mistralai/Mistral-7B-Instruct-v0.2",
-        "quantized": "models/mistral-7b-instruct-v0.2-4bit",
-    },
-    "mistral_v0_1": {
-        "hf": "mistralai/Mistral-7B-Instruct-v0.1",
-        "quantized": "models/mistral-7b-instruct-v0.1-4bit",
-    },
-    # Llama family
-    "llama": {
-        "hf": "meta-llama/Llama-3.1-8B-Instruct",
-        "quantized": "models/llama-3.1-8b-instruct-4bit",
-    },
     "llama31_8b": {
         "hf": "meta-llama/Llama-3.1-8B-Instruct",
         "quantized": "models/llama-3.1-8b-instruct-4bit",
-    },
-    "llama3_8b": {
-        "hf": "meta-llama/Meta-Llama-3-8B-Instruct",
-        "quantized": "models/llama-3-8b-instruct-4bit",
-    },
-    "llama2_7b": {
-        "hf": "meta-llama/Llama-2-7b-chat-hf",
-        "quantized": "models/llama-2-7b-chat-4bit",
     },
 }
 
@@ -122,7 +93,7 @@ def get_character_description(character):
 
 
 def get_learning_rate(model_name: str) -> float:
-    """Return the per-model learning rate. Mistral v0.2/v0.3 have an override
+    """Return the per-model learning rate. Mistral v0.3 has an override
     (see PER_MODEL_LEARNING_RATE); every other model uses the repo default
     of 5e-5. Callers should respect any explicit CLI override before
     applying this value."""
