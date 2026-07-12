@@ -366,10 +366,10 @@ TRAIN_CMD=(python scripts/train_mlx.py
     --learning-rate "$LEARNING_RATE"
     --max-seq-length "$MAX_SEQ_LENGTH"
     --config "$EFFECTIVE_CONFIG"
-    $MASK_PROMPT_FLAG
+    "$MASK_PROMPT_FLAG"
 )
 [ -n "$FINE_TUNE_TYPE_FLAG" ] && TRAIN_CMD+=(--fine-tune-type "$FINE_TUNE_TYPE_FLAG")
-[ -n "$GRAD_CHECKPOINT_FLAG" ] && TRAIN_CMD+=($GRAD_CHECKPOINT_FLAG)
+[ -n "$GRAD_CHECKPOINT_FLAG" ] && TRAIN_CMD+=("$GRAD_CHECKPOINT_FLAG")
 [ -n "$OPTIMIZER_FLAG" ] && TRAIN_CMD+=(--optimizer "$OPTIMIZER_FLAG")
 [ -n "$SEED_FLAG" ] && TRAIN_CMD+=(--seed "$SEED_FLAG")
 
