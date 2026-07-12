@@ -269,6 +269,33 @@ All training data is currently single-turn (`[system, user, assistant]` triplets
 3. **New dataset variant** — `augmented_curated_multiturn_split_2048/`.
 4. **Training auto-routes** — or expose a CLI flag (`--multiturn`) on the training wrapper. Multi-turn likely improves all models, not just specific ones.
 
+### Future: vision support
+
+None of the current models support vision — they're all text-only. The vision-capable variants (Qwen2.5-VL, Llama 3.2 Vision) are separate models entirely: different HuggingFace repos, different tokenizers, different input formats. Adding vision is a fundamentally different shape of training data, not a data augmentation.
+
+**Training format** — images embedded alongside text in user messages:
+```json
+{"messages": [
+  {"role": "system", "content": "You are Lyra..."},
+  {"role": "user", "content": [
+    {"type": "image", "image": "<base64 or file path>"},
+    {"type": "text", "text": "What do you see in this ancient scroll?"}
+  ]},
+  {"role": "assistant", "content": "Ah, the runes speak of a forgotten kingdom..."}
+]}
+```
+
+**Requirements:**
+1. **Multimodal base model** — new entry in `model_config.py`/`.sh` (e.g., `qwen25_vl_7b` → `Qwen/Qwen2.5-VL-7B-Instruct`), different tokenizer, different `MAX_SEQ_LENGTH` considerations (images consume tokens).
+2. **Image assets** — character-relevant images (fantasy art, scrolls, maps, potions) to include in training examples.
+3. **Synthetic data generation** — LLM generates image descriptions + captions; images sourced from Stable Diffusion/DALL-E or pre-existing fantasy art paired with machine captions.
+4. **New dataset variant** — `augmented_curated_vision/` with base64-encoded images or image file references.
+5. **mlx-lm vision compatibility** — not all vision models are supported by `mlx-lm lora`; the fuse/quantize pipeline would need verification.
+6. **Inference** — `folded_chat.py` would need to accept image input alongside text.
+7. **`is_vision=True` marker in config** — since training data format is a different shape from text-only models, routing must be explicit.
+
+**Heavier lift than thinking or tool calling** — vision is a separate model class, not a data augmentation. The image pipeline (generation, embedding, pre-processing for tokenizer) is the bulk of the work.
+
 ## Adding a new character
 
 1. **Create training data**: `raw_data/training_data_newchar.jsonl` in ChatML format
